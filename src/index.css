@@ -1,0 +1,513 @@
+@import "tailwindcss";
+
+/* ───────────────────────────────────────────────
+   iOS Design Tokens
+   ─────────────────────────────────────────────── */
+@theme {
+  /* System iOS colors */
+  --color-ios-blue: #4B0082;
+  --color-ios-green: #34C759;
+  --color-ios-indigo: #5856D6;
+  --color-ios-orange: #FF9500;
+  --color-ios-pink: #FF2D55;
+  --color-ios-purple: #AF52DE;
+  --color-ios-red: #FF3B30;
+  --color-ios-teal: #5AC8FA;
+  --color-ios-yellow: #FFCC00;
+
+  /* Surfaces */
+  --color-ios-bg: #F2F2F7;
+  --color-ios-card: #FFFFFF;
+  --color-ios-card-secondary: #F9F9FB;
+  --color-ios-separator: rgba(60, 60, 67, 0.12);
+  --color-ios-separator-opaque: #C6C6C8;
+  --color-ios-fill: rgba(120, 120, 128, 0.12);
+  --color-ios-fill-secondary: rgba(120, 120, 128, 0.08);
+
+  /* Text */
+  --color-ios-label: #000000;
+  --color-ios-label-secondary: rgba(60, 60, 67, 0.6);
+  --color-ios-label-tertiary: rgba(60, 60, 67, 0.3);
+  --color-ios-label-quaternary: rgba(60, 60, 67, 0.18);
+
+  /* Brand */
+  --color-brand: #4B0082;
+  --color-brand-dark: #2E0052;
+  --color-brand-glow: rgba(75, 0, 130, 0.12);
+  --color-brand-neon: #4B0082;
+  --color-gold: #FF9500;
+  --color-gold-light: #FFCC00;
+
+  /* Typography — Solo Levelling System theme */
+  --font-sans: "Inter", "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-display: "Orbitron", "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-hud: "Rajdhani", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Share Tech Mono", "SF Mono", "JetBrains Mono", "Menlo", monospace;
+  --font-rounded: "SF Pro Rounded", "SF Pro Display", -apple-system, system-ui, sans-serif;
+}
+
+/* ───────────────────────────────────────────────
+   Base — iOS-native feel
+   ─────────────────────────────────────────────── */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  background: #000;
+}
+
+body {
+  background: #000;
+  color: #fff;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* iOS-style focus rings */
+:focus-visible {
+  outline: 3px solid rgba(10, 132, 255, 0.5);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+::selection {
+  background: #0A84FF;
+  color: #fff;
+}
+
+/* ───────────────────────────────────────────────
+   Vignette flash — quest completion feedback
+   ─────────────────────────────────────────────── */
+.vignette-flash {
+  box-shadow: inset 0 0 60px rgba(75, 0, 130, 0.25);
+  transition: box-shadow 0.15s ease-out;
+}
+
+/* ───────────────────────────────────────────────
+   System interface scanline overlay
+   ─────────────────────────────────────────────── */
+.system-bg-overlay::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(75, 0, 130, 0.03) 2px,
+    rgba(75, 0, 130, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ───────────────────────────────────────────────
+   iOS Dark Surfaces & Cards
+   ─────────────────────────────────────────────── */
+.ios-card {
+  background: #1C1C1E;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.ios-card-secondary {
+  background: #2C2C2E;
+  border-radius: 14px;
+}
+
+.ios-card-elevated {
+  background: #1C1C1E;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* Frosted glass */
+.ios-glass {
+  background: rgba(28, 28, 30, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* ───────────────────────────────────────────────
+   iOS-style buttons
+   ─────────────────────────────────────────────── */
+.ios-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 1.25rem;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  font-weight: 590;
+  letter-spacing: -0.01em;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ios-btn:active {
+  transform: scale(0.97);
+  transition: transform 0.1s ease;
+}
+
+.ios-btn-primary {
+  background: #9434E6;
+  color: #fff;
+}
+.ios-btn-primary:active {
+  background: #7B2FBE;
+}
+
+.ios-btn-secondary {
+  background: rgba(120, 120, 128, 0.24);
+  color: #9434E6;
+}
+.ios-btn-secondary:active {
+  background: rgba(120, 120, 128, 0.36);
+}
+
+.ios-btn-ghost {
+  background: transparent;
+  color: #9434E6;
+}
+.ios-btn-ghost:active {
+  background: rgba(148, 52, 230, 0.12);
+}
+
+/* Pill / chip */
+.ios-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 32px;
+  padding: 0 0.75rem;
+  border-radius: 100px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: rgba(120, 120, 128, 0.16);
+  color: #fff;
+  transition: all 0.15s ease;
+}
+.ios-chip:active {
+  background: rgba(120, 120, 128, 0.24);
+}
+.ios-chip-active {
+  background: #9434E6;
+  color: #fff;
+}
+
+/* ───────────────────────────────────────────────
+   iOS-style inputs
+   ─────────────────────────────────────────────── */
+.ios-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 0.875rem;
+  border-radius: 10px;
+  border: 1px solid rgba(84, 84, 88, 0.65);
+  background: #1C1C1E;
+  font-size: 0.9375rem;
+  color: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.ios-input::placeholder {
+  color: rgba(235, 235, 245, 0.3);
+}
+.ios-input:focus {
+  border-color: #0A84FF;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.2);
+  outline: none;
+}
+
+/* ───────────────────────────────────────────────
+   iOS-style scrollbar
+   ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 128, 0.36);
+  border-radius: 100px;
+}
+
+/* ───────────────────────────────────────────────
+   iOS Tab Bar
+   ─────────────────────────────────────────────── */
+.ios-tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: calc(50px + env(safe-area-inset-bottom, 16px));
+  padding-bottom: env(safe-area-inset-bottom, 8px);
+  background: rgba(28, 28, 30, 0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-top: 0.5px solid rgba(84, 84, 88, 0.65);
+}
+
+.ios-tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  color: rgba(235, 235, 245, 0.3);
+}
+.ios-tab-item svg {
+  width: 24px;
+  height: 24px;
+  transition: all 0.15s;
+}
+.ios-tab-item span {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.ios-tab-item-active {
+  color: #0A84FF;
+}
+
+/* ───────────────────────────────────────────────
+   iOS cell / list row
+   ─────────────────────────────────────────────── */
+.ios-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  min-height: 44px;
+  background: #1C1C1E;
+  transition: background 0.15s;
+}
+.ios-cell:active {
+  background: rgba(120, 120, 128, 0.16);
+}
+.ios-cell + .ios-cell {
+  border-top: 0.5px solid rgba(84, 84, 88, 0.65);
+}
+
+/* ───────────────────────────────────────────────
+   iOS Section Header
+   ─────────────────────────────────────────────── */
+.ios-section-header {
+  padding: 1.25rem 1rem 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  color: rgba(235, 235, 245, 0.6);
+}
+
+/* ───────────────────────────────────────────────
+   iOS Check circle
+   ─────────────────────────────────────────────── */
+.ios-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(235, 235, 245, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.ios-check-done {
+  background: #30D158;
+  border-color: #30D158;
+}
+.ios-check-done svg {
+  color: #fff;
+  width: 14px;
+  height: 14px;
+}
+
+/* ───────────────────────────────────────────────
+   iOS Progress Bar
+   ─────────────────────────────────────────────── */
+.ios-progress-bar {
+  height: 6px;
+  border-radius: 100px;
+  background: rgba(120, 120, 128, 0.16);
+  overflow: hidden;
+}
+.ios-progress-fill {
+  height: 100%;
+  border-radius: 100px;
+  background: #9434E6;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ───────────────────────────────────────────────
+   Animation utilities
+   ─────────────────────────────────────────────── */
+@keyframes ios-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ios-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.ios-animate-in {
+  animation: ios-fade-in 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.ios-animate-scale {
+  animation: ios-scale-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ───────────────────────────────────────────────
+   Stagger children
+   ─────────────────────────────────────────────── */
+.ios-stagger > * {
+  animation: ios-fade-in 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.ios-stagger > *:nth-child(1) { animation-delay: 0s; }
+.ios-stagger > *:nth-child(2) { animation-delay: 0.05s; }
+.ios-stagger > *:nth-child(3) { animation-delay: 0.1s; }
+.ios-stagger > *:nth-child(4) { animation-delay: 0.15s; }
+.ios-stagger > *:nth-child(5) { animation-delay: 0.2s; }
+.ios-stagger > *:nth-child(6) { animation-delay: 0.25s; }
+.ios-stagger > *:nth-child(7) { animation-delay: 0.3s; }
+.ios-stagger > *:nth-child(8) { animation-delay: 0.35s; }
+.ios-stagger > *:nth-child(9) { animation-delay: 0.4s; }
+
+/* ───────────────────────────────────────────────
+   XP burst animation
+   ─────────────────────────────────────────────── */
+@keyframes xp-burst {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-40px) scale(1.4); }
+}
+.xp-burst {
+  animation: xp-burst 0.9s ease-out forwards;
+  pointer-events: none;
+}
+
+/* ───────────────────────────────────────────────
+   Safe area padding for bottom tab bar
+   ─────────────────────────────────────────────── */
+.ios-safe-bottom {
+  padding-bottom: calc(60px + env(safe-area-inset-bottom, 16px));
+}
+
+/* ───────────────────────────────────────────────
+   Legacy class aliases (backward compat)
+   ─────────────────────────────────────────────── */
+.system-card {
+  background: #1C1C1E;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: none;
+}
+.hud-bar {
+  background: linear-gradient(90deg, #0A84FF 0%, #5E5CE6 100%);
+}
+.text-ascend {
+  background: linear-gradient(100deg, #FFFFFF 30%, #9434E6 70%, #FFCC00 105%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.glow-purple {
+  box-shadow: 0 0 12px rgba(148, 52, 230, 0.3);
+}
+.glow-border {
+  border-color: rgba(10, 132, 255, 0.3);
+}
+.boss-live {
+  animation: none;
+}
+
+/* ───────────────────────────────────────────────
+   Auth page animated gradient drifts
+   ─────────────────────────────────────────────── */
+@keyframes drift1 {
+  from { transform: translate(0px, 0px) scale(1); }
+  to   { transform: translate(40px, 30px) scale(1.1); }
+}
+@keyframes drift2 {
+  from { transform: translate(0px, 0px) scale(1); }
+  to   { transform: translate(-30px, -40px) scale(0.95); }
+}
+@keyframes drift3 {
+  from { transform: translateX(-50%) scaleX(1); }
+  to   { transform: translateX(-50%) scaleX(1.15); }
+}
+
+/* ───────────────────────────────────────────────
+   Onboarding avatar ready pulse
+   ─────────────────────────────────────────────── */
+@keyframes avatar-ready {
+  0%, 100% { box-shadow: 0 0 50px rgba(148,52,230,0.7); }
+  50%       { box-shadow: 0 0 70px rgba(148,52,230,0.9); }
+}
+.avatar-ready {
+  animation: avatar-ready 2s ease-in-out infinite;
+}
+
+/* ───────────────────────────────────────────────
+   Domain unlock gold pulse
+   ─────────────────────────────────────────────── */
+@keyframes domain-gold-pulse {
+  0%   { box-shadow: 0 0 0px rgba(201, 168, 76, 0); border-color: rgba(201, 168, 76, 0); }
+  20%  { box-shadow: 0 0 24px rgba(201, 168, 76, 0.5); border-color: rgba(201, 168, 76, 0.6); }
+  100% { box-shadow: 0 0 0px rgba(201, 168, 76, 0); border-color: rgba(201, 168, 76, 0); }
+}
+.domain-gold-pulse {
+  animation: domain-gold-pulse 2s ease-out forwards;
+  border: 1px solid transparent;
+}

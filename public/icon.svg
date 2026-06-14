@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="kg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F5D061"/>
+      <stop offset="45%" stop-color="#D4AF37"/>
+      <stop offset="75%" stop-color="#B8860B"/>
+      <stop offset="100%" stop-color="#F5D061"/>
+    </linearGradient>
+    <radialGradient id="bf" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#2D1B4E"/>
+      <stop offset="70%" stop-color="#1A0F2E"/>
+      <stop offset="100%" stop-color="#0D0619"/>
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="248" fill="#0D0619" stroke="url(#kg)" stroke-width="4"/>
+  <!-- Brain outer silhouette -->
+  <g>
+    <path d="M256 48 C144 48 64 128 64 240 C64 304 96 352 128 384 C160 416 208 432 256 432 C240 432 192 416 160 384 C128 352 96 304 96 240 C96 128 176 80 256 80 Z" fill="url(#bf)" stroke="url(#kg)" stroke-width="3"/>
+    <path d="M256 48 C368 48 448 128 448 240 C448 304 416 352 384 384 C352 416 304 432 256 432 C272 432 320 416 352 384 C384 352 416 304 416 240 C416 128 336 80 256 80 Z" fill="url(#bf)" stroke="url(#kg)" stroke-width="3"/>
+  </g>
+  <!-- Central fissure -->
+  <line x1="256" y1="64" x2="256" y2="432" stroke="url(#kg)" stroke-width="4" filter="url(#glow)"/>
+  <!-- Kintsugi cracks -->
+  <g filter="url(#glow)" stroke="url(#kg)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M144 176 L112 224 L128 272 L96 320"/>
+    <path d="M192 112 L160 160 L176 208"/>
+    <path d="M112 144 L80 192 L112 256"/>
+    <path d="M160 304 L128 352 L144 400"/>
+    <path d="M368 160 L400 208 L384 256 L416 304"/>
+    <path d="M320 112 L352 160 L336 208"/>
+    <path d="M400 128 L432 176 L400 240"/>
+    <path d="M352 288 L384 336 L368 384"/>
+    <path d="M224 144 L256 176 L288 144"/>
+    <path d="M208 272 L256 304 L304 272"/>
+    <path d="M192 352 L256 384 L320 352"/>
+  </g>
+  <!-- Cortical folds -->
+  <g stroke="url(#kg)" stroke-width="2" fill="none" opacity="0.4" stroke-linecap="round">
+    <path d="M128 112 C144 96 176 96 192 112"/>
+    <path d="M96 176 C112 160 144 160 160 176"/>
+    <path d="M112 272 C128 256 160 256 176 272"/>
+    <path d="M128 368 C144 352 176 352 192 368"/>
+    <path d="M384 112 C368 96 336 96 320 112"/>
+    <path d="M416 176 C400 160 368 160 352 176"/>
+    <path d="M400 272 C384 256 352 256 336 272"/>
+    <path d="M384 368 C368 352 336 352 320 368"/>
+  </g>
+  <!-- Kintsugi joint nodes -->
+  <g fill="url(#kg)">
+    <circle cx="256" cy="176" r="4"/>
+    <circle cx="256" cy="304" r="4"/>
+    <circle cx="256" cy="384" r="4"/>
+    <circle cx="112" cy="224" r="3"/>
+    <circle cx="128" cy="272" r="3"/>
+    <circle cx="160" cy="160" r="3"/>
+    <circle cx="400" cy="208" r="3"/>
+    <circle cx="384" cy="256" r="3"/>
+    <circle cx="352" cy="160" r="3"/>
+  </g>
+</svg>

@@ -1,0 +1,43 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Dev Server (Phone)",
+			"type": "shell",
+			"command": "npm run dev -- --host 0.0.0.0 --port 3000",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Dev Server Phone",
+			"type": "shell",
+			"command": "node start-phone.js",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Dev Server Phone 3000",
+			"type": "shell",
+			"command": "node start-phone.cjs",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Dev Phone 3000",
+			"type": "shell",
+			"command": "node start-phone.cjs",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "phone-preview",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"start-phone.cjs"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}
