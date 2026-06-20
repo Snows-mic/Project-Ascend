@@ -24,7 +24,14 @@ interface FocusRaidProps {
 
 type Phase = "setup" | "active" | "cleared";
 
-const DURATIONS = [25, 50, 90];
+const DURATIONS = [25, 60, 90];
+const FOCUS_PREF_KEY = "projectff_focus_minutes";
+
+/** Last-used focus duration (persisted), default 25. */
+function loadFocusPref(): number {
+  const n = Number(localStorage.getItem(FOCUS_PREF_KEY));
+  return DURATIONS.includes(n) ? n : 25;
+}
 const RING_R = 130;
 const CIRC = 2 * Math.PI * RING_R;
 
@@ -41,7 +48,7 @@ export default function FocusRaid({
   onClose,
 }: FocusRaidProps) {
   const [phase, setPhase] = useState<Phase>("setup");
-  const [minutes, setMinutes] = useState(25);
+  const [minutes, setMinutes] = useState(loadFocusPref);
   const [objective, setObjective] = useState("");
   const [remaining, setRemaining] = useState(0);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -52,7 +59,7 @@ export default function FocusRaid({
     if (open) {
       setPhase("setup");
       setObjective("");
-      setMinutes(25);
+      setMinutes(loadFocusPref());
       setConfirmLeave(false);
       firedRef.current = false;
     }
@@ -152,7 +159,10 @@ export default function FocusRaid({
                 {DURATIONS.map((d) => (
                   <button
                     key={d}
-                    onClick={() => setMinutes(d)}
+                    onClick={() => {
+                      setMinutes(d);
+                      localStorage.setItem(FOCUS_PREF_KEY, String(d));
+                    }}
                     className={`rounded-xl border px-4 py-2.5 font-mono text-sm transition-all ${
                       minutes === d
                         ? "border-brand-neon bg-brand/20 text-brand-neon"

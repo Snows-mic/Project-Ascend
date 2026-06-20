@@ -199,6 +199,9 @@ Backend: **Supabase** (project `msdabogetqgjrqjkigju`). Static-host target TBD
 ## Technical changelog
 | Date | Change |
 |------|--------|
+| 2026-06-15 | **Mobile UX polish** — Focus presets 25/60/90 + persisted (`projectff_focus_minutes`); Today→Bounties funnel (scrollTarget); single safe-area bottom nav (removed redundant top pill); `<main>` bottom padding so nothing's hidden behind nav/FAB |
+| 2026-06-08 | **Fork reconciliation** — merged orphaned features (Today/Journal/Radar/SkillTree/FocusRaid) + restored Boss Fights & Bounties into the live sidebar/hooks App; nav → Today·Schedule·Quests·Journal·Stats; build verified |
+| 2026-06-08 | **Bug reporting** — `BugReport.tsx` + `bug_reports` Supabase table (anon-insert RLS, owner reads in dashboard) + localStorage queue fallback; "Report a bug" launcher in App |
 | 2026-06-08 | **Deep Focus raid** — `FocusRaid.tsx` full-screen focus timer (forfeit-by-leaving commitment device), Kintsugi purple/gold; rejected the Solo Leveling cyan reskin (never applied) |
 | 2026-06-08 | **Radar + Boss Fights** — `RadarChart.tsx` (6 fixed attributes, Resolve = Kintsugi consistency stat, derived) on Progress → Overview; `Quest.isBoss` + editor toggle + Boss section + BOSS SLAIN celebration |
 | 2026-06-08 | **Skill Trees** — `SKILL_NODES` + `SkillTree.tsx`: 6 consistency-gated nodes per pillar (reps/streaks/comebacks, never XP), fully derived, under Progress → Skills |

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Award,
@@ -30,9 +30,10 @@ import {
   Edit3,
   Trash2,
   X,
+  Swords,
 } from "lucide-react";
 import { UserProfile, Quest, Achievement, NonNegotiableTemplate } from "../types";
-import { getPillarDef, AVAILABLE_PILLARS } from "../data";
+import { getPillarDef, AVAILABLE_PILLARS, nextBounty, earnedBounties } from "../data";
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
@@ -56,6 +57,9 @@ interface QuestsAchievementsProps {
   // Gamemode daily quest cap
   dailyQuestCap?: number;
   dailyActiveQuests?: number;
+  // Deep-link scroll (e.g. "bounties" from the Today funnel)
+  scrollTarget?: string | null;
+  onScrolled?: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -117,7 +121,10 @@ export default function QuestsAchievements({
   nnTotalToday = 0,
   dailyQuestCap = 3,
   dailyActiveQuests = 0,
+  scrollTarget = null,
+  onScrolled,
 }: QuestsAchievementsProps) {
+  const bountiesRef = useRef<HTMLDivElement | null>(null);
   const [showAchievements, setShowAchievements] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingQuest, setEditingQuest] = useState<Quest | null>(null);
@@ -131,6 +138,7 @@ export default function QuestsAchievements({
   const [formXp, setFormXp] = useState(15);
   const [formCore, setFormCore] = useState(false);
   const [formNN, setFormNN] = useState(false);
+  const [formBoss, setFormBoss] = useState(false);
 
   const openEditor = (quest?: Quest) => {
     if (quest) {
@@ -142,6 +150,7 @@ export default function QuestsAchievements({
       setFormXp(quest.xpReward);
       setFormCore(quest.isCoreHabit ?? false);
       setFormNN(quest.isNonNegotiable ?? false);
+      setFormBoss(quest.isBoss ?? false);
     } else {
       setEditingQuest(null);
       setFormTitle("");
@@ -151,6 +160,7 @@ export default function QuestsAchievements({
       setFormXp(15);
       setFormCore(false);
       setFormNN(false);
+      setFormBoss(false);
     }
     setEditorOpen(true);
   };
@@ -164,6 +174,7 @@ export default function QuestsAchievements({
       type: formType,
       xpReward: formXp,
       isCoreHabit: formCore,
+      isBoss: formBoss || undefined,
     };
 
     // If marking as non-negotiable, use the NN handler chain
@@ -215,34 +226,57 @@ export default function QuestsAchievements({
   };
 
   /* ---- Derived data ---- */
+  const bosses = useMemo(() => quests.filter((q) => q.isBoss), [quests]);
+
   const nonNegotiables = useMemo(
-    () => quests.filter((q) => q.isNonNegotiable),
+    () => quests.filter((q) => q.isNonNegotiable && !q.isBoss),
     [quests],
   );
 
   const coreHabits = useMemo(
-    () => quests.filter((q) => q.isCoreHabit && !q.isNonNegotiable),
+    () => quests.filter((q) => q.isCoreHabit && !q.isNonNegotiable && !q.isBoss),
     [quests],
   );
 
   const rotatingDailies = useMemo(
-    () => quests.filter((q) => q.type === "daily" && !q.isCoreHabit && !q.isNonNegotiable),
+    () =>
+      quests.filter(
+        (q) => q.type === "daily" && !q.isCoreHabit && !q.isNonNegotiable && !q.isBoss,
+      ),
     [quests],
   );
 
   const weeklies = useMemo(
-    () => quests.filter((q) => q.type === "weekly"),
+    () => quests.filter((q) => q.type === "weekly" && !q.isBoss),
     [quests],
   );
 
   const milestones = useMemo(
-    () => quests.filter((q) => q.type === "milestone"),
+    () => quests.filter((q) => q.type === "milestone" && !q.isBoss),
     [quests],
   );
 
-  const unlockedIds = new Set(profile.achievements);
-  const unlockedCount = profile.achievements.length;
-  const totalCount = achievements.length;
+  const trackedForBounties = useMemo(
+    () =>
+      quests.filter((q) => {
+        const count = profile.participation?.[q.id] ?? 0;
+        return q.isCoreHabit || q.isBoss || q.id.startsWith("custom_") || count > 0;
+      }),
+    [quests, profile.participation],
+  );
+
+  // Deep-link: scroll the Bounties section into view when funneled from Today
+  useEffect(() => {
+    if (scrollTarget === "bounties" && bountiesRef.current) {
+      bountiesRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      onScrolled?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollTarget]);
+
+  const unlockedIds = new Set(profile.achievements ?? []);
+  const unlockedCount = profile.achievements?.length ?? 0;
+  const totalCount = achievements?.length ?? 0;
 
   /* ---- Render helper ---- */
   const renderQuestRow = (quest: Quest) => {
@@ -259,7 +293,9 @@ export default function QuestsAchievements({
         className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
           isCompleted
             ? "border-emerald-500/20 bg-emerald-500/[0.06]"
-            : "border-white/5 bg-white/[0.02] hover:border-white/10"
+            : quest.isBoss
+              ? "boss-live border-rose-500/30 bg-rose-950/[0.08] hover:border-rose-400/50"
+              : "border-white/5 bg-white/[0.02] hover:border-white/10"
         }`}
       >
         <div className="mt-0.5 shrink-0">
@@ -275,6 +311,11 @@ export default function QuestsAchievements({
             <span className="text-sm font-medium text-white">
               {quest.title}
             </span>
+            {quest.isBoss && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-950/40 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-rose-300">
+                <Swords className="h-2.5 w-2.5" /> Boss
+              </span>
+            )}
             {PillarIcon && <PillarIcon className="h-3.5 w-3.5 text-white/25" />}
           </div>
           {quest.description && (
@@ -356,6 +397,84 @@ export default function QuestsAchievements({
           <span className="text-xs font-mono text-amber-400/80">
             Daily cap reached ({dailyActiveQuests}/{dailyQuestCap}) — complete open quests to free slots.
           </span>
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/*  Boss Fights — the thing you've been avoiding                      */}
+      {/* ================================================================ */}
+      {bosses.length > 0 && (
+        <div className="system-card rounded-2xl p-5 border-rose-500/20">
+          <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-rose-300">
+            <Swords className="h-3.5 w-3.5" />
+            Boss Fight
+          </div>
+          <p className="mb-4 text-[10px] font-mono text-white/40">
+            The thing you've been avoiding. Slay it for the biggest win of the week.
+          </p>
+          <div className="space-y-2">
+            <AnimatePresence>
+              {bosses.map((q) => (
+                <motion.div key={q.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
+                  {renderQuestRow(q)}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/*  Bounties — participation milestones (do X N times → award)        */}
+      {/* ================================================================ */}
+      {trackedForBounties.length > 0 && (
+        <div ref={bountiesRef} className="system-card rounded-2xl p-5 scroll-mt-4">
+          <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-white/40">
+            <Award className="h-3.5 w-3.5 text-yellow-400" />
+            Bounties
+            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] normal-case tracking-normal text-white/40">
+              repeat to earn
+            </span>
+          </div>
+          <div className="space-y-3">
+            {trackedForBounties.map((q) => {
+              const count = profile.participation?.[q.id] ?? 0;
+              const earned = earnedBounties(count);
+              const next = nextBounty(count);
+              const floor = earned.length ? earned[earned.length - 1].count : 0;
+              const pct = next
+                ? Math.min(100, ((count - floor) / (next.count - floor)) * 100)
+                : 100;
+              return (
+                <div key={q.id} className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium text-white">{q.title}</span>
+                    <span className="shrink-0 font-mono text-[11px] font-bold text-brand-neon">{count}×</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5">
+                    <span className="font-mono text-[10px] text-white/40">
+                      {next ? `${count} / ${next.count} → ${next.name} (+${next.xp} XP)` : `Maxed — ${count} completions`}
+                    </span>
+                    {earned.length > 0 && (
+                      <div className="flex flex-wrap justify-end gap-1">
+                        {earned.map((t) => (
+                          <span key={t.count} className="rounded-full border border-yellow-500/25 bg-yellow-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-yellow-300">
+                            ×{t.count} {t.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -729,6 +848,31 @@ export default function QuestsAchievements({
                   <span className="text-xs text-white/60">
                     Non-Negotiable{" "}
                     <span className="text-brand-neon/60">(auto-regenerates daily)</span>
+                  </span>
+                </label>
+
+                {/* Boss Fight toggle */}
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div
+                    onClick={() => {
+                      const next = !formBoss;
+                      setFormBoss(next);
+                      if (next && formXp === 15) setFormXp(50);
+                    }}
+                    className={`relative h-5 w-9 rounded-full transition-colors ${
+                      formBoss ? "bg-rose-500" : "bg-white/[0.08]"
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                        formBoss ? "left-[18px]" : "left-0.5"
+                      }`}
+                    />
+                  </div>
+                  <span className="flex items-center gap-1.5 text-xs text-white/60">
+                    <Swords className="h-3.5 w-3.5 text-rose-400" />
+                    Boss Fight{" "}
+                    <span className="text-rose-300/60">(the thing you've been avoiding)</span>
                   </span>
                 </label>
 

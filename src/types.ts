@@ -45,6 +45,7 @@ export interface UserProfile {
   focusSessions?: number; // lifetime cleared raids
   nonNegotiableTemplates?: NonNegotiableTemplate[]; // auto-regenerating daily quest blueprints
   vocabularyMode?: "simple" | "pro"; // terminology preference (default: "pro")
+  systemName?: string; // codename the System calls the user (Solo-Leveling flavour)
   createdAt: string;
   updatedAt: string;
 }

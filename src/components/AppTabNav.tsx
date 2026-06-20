@@ -2,12 +2,12 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * AppTabNav — Mobile pill tab nav + Bottom fixed mobile nav bar.
- * Extracted from App.tsx Step 4.
+ * AppTabNav — Mobile bottom nav with iOS frosted-blur feel + animated active pill.
  */
 
 import { type FC } from "react";
 import { type LucideIcon } from "lucide-react";
+import { motion } from "motion/react";
 
 interface NavItem {
   id: string;
@@ -27,40 +27,59 @@ const AppTabNav: FC<AppTabNavProps> = ({
   onTabChange,
 }) => {
   return (
-    <>
-      {/* Pill tab nav — visible on mobile & tablet, hidden when sidebar is present */}
-      <nav className="md:hidden flex mx-4 mt-2 bg-neutral-900 p-1.5 rounded-xl border border-neutral-850/80 overflow-x-auto select-none">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onTabChange(item.id)}
-            className={`flex-1 px-3 py-2 rounded-lg text-xs font-sans font-semibold transition-all cursor-pointer ${
-              activeTab === item.id
-                ? "bg-brand text-neutral-100 border border-brand-neon/30 shadow shadow-brand/20"
-                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850/50"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
-      {/* Fixed bottom mobile nav bar */}
-      <div className="fixed bottom-0 left-0 right-0 h-16 bg-neutral-900 border-t border-neutral-855 backdrop-blur-md flex items-center justify-around px-4 md:hidden z-55 shadow-2xl">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onTabChange(item.id)}
-            className={`flex flex-col items-center justify-center p-2 text-center select-none cursor-pointer ${activeTab === item.id ? "text-brand-neon" : "text-neutral-400"}`}
-          >
-            <item.icon className="w-5 h-5" />
-            <span className="text-[10px] mt-1 font-sans font-medium">
-              {item.label}
-            </span>
-          </button>
-        ))}
+    <nav
+      aria-label="Primary"
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {/* Gradient fade above the bar so content doesn't visually clip into it */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-6 left-0 right-0 h-6 bg-gradient-to-t from-black/70 to-transparent"
+      />
+      <div className="relative backdrop-blur-2xl bg-black/65 border-t border-white/[0.06] px-1 pt-1.5 pb-1.5 flex items-stretch justify-around">
+        {navItems.map((item) => {
+          const isActive = activeTab === item.id;
+          const Icon = item.icon;
+          return (
+            <motion.button
+              key={item.id}
+              onClick={() => onTabChange(item.id)}
+              whileTap={{ scale: 0.9 }}
+              className={`relative flex flex-1 min-h-[54px] flex-col items-center justify-center gap-1 py-1.5 px-1 select-none cursor-pointer rounded-xl transition-colors ${
+                isActive
+                  ? "text-brand-neon"
+                  : "text-white/45 active:text-white/65"
+              }`}
+              aria-pressed={isActive}
+            >
+              {/* Active pill — shared layout id smoothly slides between tabs */}
+              {isActive && (
+                <motion.span
+                  layoutId="nav-active-pill"
+                  className="absolute inset-1 rounded-xl bg-brand/15 ring-1 ring-brand/30"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+              <motion.span
+                className="relative flex items-center justify-center"
+                animate={isActive ? { y: -1, scale: 1.05 } : { y: 0, scale: 1 }}
+                transition={{ type: "spring", stiffness: 360, damping: 22 }}
+              >
+                <Icon className="w-[22px] h-[22px]" strokeWidth={isActive ? 2.4 : 2} />
+              </motion.span>
+              <span
+                className={`relative text-[10px] font-semibold leading-none tracking-wide ${
+                  isActive ? "text-brand-neon" : "text-white/55"
+                }`}
+              >
+                {item.label}
+              </span>
+            </motion.button>
+          );
+        })}
       </div>
-    </>
+    </nav>
   );
 };
 

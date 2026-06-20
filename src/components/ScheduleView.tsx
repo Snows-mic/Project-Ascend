@@ -30,9 +30,11 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarClock,
+  Plus,
 } from "lucide-react";
 import { UserProfile, DailyLog, Quest } from "../types";
 import { getPillarDef, PRIORITY_META } from "../data";
+import { haptic } from "../haptics";
 
 interface ScheduleViewProps {
   profile: UserProfile;
@@ -72,8 +74,9 @@ function dateLabel(date: string): string {
 interface TrayChipProps {
   quest: Quest;
   done: boolean;
+  onQuickSchedule: (id: string) => void;
 }
-function TrayChip({ quest, done }: TrayChipProps) {
+function TrayChip({ quest, done, onQuickSchedule }: TrayChipProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: quest.id });
   const style = transform
@@ -83,20 +86,35 @@ function TrayChip({ quest, done }: TrayChipProps) {
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      className={`flex cursor-grab items-center gap-2 rounded-xl bg-[#2C2C2E] px-3 py-2 text-[13px] text-white active:cursor-grabbing active:bg-[#3A3A3C] ${
+      className={`flex items-center gap-1 rounded-xl bg-[#2C2C2E] pl-1 pr-1 py-1.5 text-[13px] text-white ${
         isDragging ? "opacity-30" : ""
       } ${done ? "opacity-50" : ""}`}
     >
-      <GripVertical className="h-4 w-4 shrink-0 text-white/25" />
-      {quest.priority && (
-        <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_META[quest.priority].dot}`} />
-      )}
-      <span className="truncate">{quest.title}</span>
-      {quest.durationMin ? (
-        <span className="shrink-0 text-white/30 text-[12px]">{quest.durationMin}m</span>
-      ) : null}
+      {/* Drag handle — explicit grip so the rest of the chip stays tappable */}
+      <span
+        {...listeners}
+        {...attributes}
+        className="flex h-8 cursor-grab touch-none items-center px-1 text-white/25 active:cursor-grabbing"
+        aria-label="Drag to a time"
+      >
+        <GripVertical className="h-4 w-4 shrink-0" />
+      </span>
+      {/* Tap target — one-tap schedule */}
+      <button
+        onClick={() => onQuickSchedule(quest.id)}
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1 text-left active:bg-white/[0.06]"
+      >
+        {quest.priority && (
+          <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_META[quest.priority].dot}`} />
+        )}
+        <span className="truncate">{quest.title}</span>
+        {quest.durationMin ? (
+          <span className="shrink-0 text-white/30 text-[12px]">{quest.durationMin}m</span>
+        ) : null}
+        <span className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ios-blue/20 text-ios-blue">
+          <Plus className="h-3.5 w-3.5" />
+        </span>
+      </button>
     </div>
   );
 }
@@ -108,6 +126,7 @@ interface ScheduledBlockProps {
   canComplete: boolean;
   onToggle: (id: string) => void;
   onUnschedule: (id: string) => void;
+  onReschedule: (id: string, time: string) => void;
 }
 function ScheduledBlock({
   quest,
@@ -115,6 +134,7 @@ function ScheduledBlock({
   canComplete,
   onToggle,
   onUnschedule,
+  onReschedule,
 }: ScheduledBlockProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: quest.id });
@@ -125,7 +145,7 @@ function ScheduledBlock({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 rounded-xl px-3 py-2 bg-[#2C2C2E] ${
+      className={`flex items-center gap-2 rounded-xl px-2.5 py-2 bg-[#2C2C2E] ${
         quest.priority ? PRIORITY_META[quest.priority].border : "border-l-2 border-l-ios-blue"
       } ${isDragging ? "opacity-30" : ""}`}
     >
@@ -141,19 +161,31 @@ function ScheduledBlock({
       >
         <Check className="h-3 w-3" />
       </button>
+      {/* Tappable time → native iOS time wheel, easiest way to move a block */}
+      <label className="relative shrink-0 cursor-pointer">
+        <span className="block rounded-md bg-ios-blue/15 px-1.5 py-0.5 text-[12px] font-semibold tabular-nums text-ios-blue">
+          {quest.scheduledTime}
+        </span>
+        <input
+          type="time"
+          value={quest.scheduledTime ?? ""}
+          onChange={(e) => e.target.value && onReschedule(quest.id, e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          aria-label={`Move ${quest.title} to a new time`}
+        />
+      </label>
       <div
         {...listeners}
         {...attributes}
-        className="min-w-0 flex-1 cursor-grab active:cursor-grabbing"
+        className="min-w-0 flex-1 cursor-grab touch-none active:cursor-grabbing"
       >
         <p className={`truncate text-[13px] ${done ? "text-white/30 line-through" : "text-white"}`}>
-          <span className="text-ios-blue">{quest.scheduledTime}</span>{" "}
           {quest.title}
         </p>
       </div>
       <button
         onClick={() => onUnschedule(quest.id)}
-        className="shrink-0 text-white/30 active:text-[#FF453A]"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/30 active:bg-white/[0.06] active:text-[#FF453A]"
         title="Unschedule"
       >
         <X className="h-4 w-4" />
@@ -171,6 +203,7 @@ interface HourSlotProps {
   isDone: (q: Quest) => boolean;
   onToggle: (id: string) => void;
   onUnschedule: (id: string) => void;
+  onReschedule: (id: string, time: string) => void;
   nowRef?: (el: HTMLDivElement | null) => void;
 }
 function HourSlot({
@@ -181,6 +214,7 @@ function HourSlot({
   isDone,
   onToggle,
   onUnschedule,
+  onReschedule,
   nowRef,
 }: HourSlotProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `hour-${hour}` });
@@ -211,6 +245,7 @@ function HourSlot({
               canComplete={canComplete}
               onToggle={onToggle}
               onUnschedule={onUnschedule}
+              onReschedule={onReschedule}
             />
           </div>
         ))}
@@ -224,8 +259,9 @@ interface TrayProps {
   unscheduled: Quest[];
   scheduledCount: number;
   isDone: (q: Quest) => boolean;
+  onQuickSchedule: (id: string) => void;
 }
-function Tray({ unscheduled, scheduledCount, isDone }: TrayProps) {
+function Tray({ unscheduled, scheduledCount, isDone, onQuickSchedule }: TrayProps) {
   const { setNodeRef, isOver } = useDroppable({ id: "tray" });
   return (
     <div className="ios-card p-5">
@@ -235,23 +271,23 @@ function Tray({ unscheduled, scheduledCount, isDone }: TrayProps) {
           QUEUED PROTOCOLS
         </div>
         <span className="text-[11px] text-white/30">
-          {scheduledCount} blocked · drag onto a time →
+          {scheduledCount} blocked · tap to schedule →
         </span>
       </div>
       <div
         ref={setNodeRef}
-        className={`flex min-h-[44px] flex-wrap gap-2 rounded-xl p-2 transition-colors ${
+        className={`flex min-h-[44px] flex-col gap-1.5 rounded-xl p-2 transition-colors ${
           isOver ? "bg-ios-blue/10 ring-1 ring-ios-blue/30" : "bg-[#1C1C1E]"
         }`}
       >
         {unscheduled.length === 0 ? (
           <span className="px-1 py-1 text-xs text-white/45">
-            Everything's scheduled. 🎯
+            Everything's scheduled.
           </span>
         ) : (
           unscheduled.map((q) => (
             <div key={q.id}>
-              <TrayChip quest={q} done={isDone(q)} />
+              <TrayChip quest={q} done={isDone(q)} onQuickSchedule={onQuickSchedule} />
             </div>
           ))
         )}
@@ -336,6 +372,43 @@ export default function ScheduleView({
     }
   };
 
+  // Set of hours already occupied for the viewed date — used to pick the next free slot.
+  const occupiedHours = useMemo(() => {
+    const set = new Set<number>();
+    quests.forEach((q) => {
+      if (!q.scheduledTime) return;
+      if (q.scheduledDate && q.scheduledDate !== viewDate) return;
+      set.add(parseInt(q.scheduledTime.slice(0, 2)));
+    });
+    return set;
+  }, [quests, viewDate]);
+
+  /** One-tap schedule: drop the tapped quest into the next open hour from now. */
+  const handleQuickSchedule = (id: string) => {
+    const startHour = isToday ? new Date().getHours() : 8; // future days → assume 8am
+    let target = startHour;
+    while (target < 24 && occupiedHours.has(target)) target++;
+    if (target >= 24) target = startHour; // fallback — stack on the start hour
+    const time = `${String(target).padStart(2, "0")}:00`;
+    haptic("tap");
+    onSchedule(id, time, isToday ? null : viewDate);
+    // After scheduling, scroll the timeline to the new block.
+    requestAnimationFrame(() => {
+      const c = timelineRef.current;
+      if (!c) return;
+      const row = c.querySelector<HTMLDivElement>(`[data-hour="${time}"]`);
+      if (row) {
+        c.scrollTop +=
+          row.getBoundingClientRect().top - c.getBoundingClientRect().top - 40;
+      }
+    });
+  };
+
+  const handleReschedule = (id: string, time: string) => {
+    haptic("tap");
+    onSchedule(id, time, isToday ? null : viewDate);
+  };
+
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="space-y-5">
@@ -400,6 +473,7 @@ export default function ScheduleView({
           unscheduled={unscheduled}
           scheduledCount={scheduledCount}
           isDone={isDone}
+          onQuickSchedule={handleQuickSchedule}
         />
 
         {/* 24-hour timeline */}
@@ -415,7 +489,7 @@ export default function ScheduleView({
             {HOURS.map((hour) => {
               const now = isToday && hour === nowHour;
               return (
-                <div key={hour}>
+                <div key={hour} data-hour={hour}>
                   <HourSlot
                     hour={hour}
                     blocks={blocksForHour(hour)}
@@ -424,6 +498,7 @@ export default function ScheduleView({
                     isDone={isDone}
                     onToggle={onToggleQuest}
                     onUnschedule={(id) => onSchedule(id, null, null)}
+                    onReschedule={handleReschedule}
                     nowRef={
                       now
                         ? (el) => {

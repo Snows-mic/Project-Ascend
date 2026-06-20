@@ -161,24 +161,34 @@ export default function CaptureSheet({
           onClick={onClose}
         >
           <motion.div
-            initial={{ y: 80, opacity: 0 }}
+            initial={{ y: "100%", opacity: 0.9 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            exit={{ y: "100%", opacity: 0 }}
+            transition={{ type: "spring", stiffness: 380, damping: 36 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={0.25}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 120 || info.velocity.y > 500) onClose();
+            }}
             onClick={(e) => e.stopPropagation()}
-            className="system-card w-full max-w-lg rounded-t-3xl sm:rounded-3xl border border-white/10 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+            className="w-full max-w-lg rounded-t-[28px] sm:rounded-[28px] border border-white/10 bg-[#1C1C1E]/95 backdrop-blur-2xl shadow-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
           >
+            {/* iOS drag handle */}
+            <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-white/20" />
+
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-widest text-white/40">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-white/40">
                 Capture anything
               </span>
-              <button
+              <motion.button
                 onClick={onClose}
-                className="rounded-lg p-1.5 text-white/40 hover:bg-white/[0.06] hover:text-white"
+                whileTap={{ scale: 0.9 }}
+                className="rounded-full bg-white/[0.06] p-1.5 text-white/60 active:bg-white/[0.1]"
                 aria-label="Close capture"
               >
-                <X className="h-5 w-5" />
-              </button>
+                <X className="h-4 w-4" />
+              </motion.button>
             </div>
 
             <div className="relative">
@@ -191,7 +201,9 @@ export default function CaptureSheet({
                 if (e.key === "Escape") onClose();
               }}
               placeholder={listening ? "Listening…" : "A task, a thought, anything…"}
-              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3.5 pr-12 text-base text-white placeholder:text-white/40 focus:border-brand-neon/50 focus:outline-none"
+              autoCapitalize="sentences"
+              autoCorrect="on"
+              className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 pr-12 text-[17px] text-white placeholder:text-white/40 focus:border-brand-neon/50 focus:outline-none"
             />
             {voiceSupported && (
               <button

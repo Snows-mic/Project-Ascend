@@ -38,6 +38,9 @@ export const WEEKLY_REVIEW_PROMPTS = [
   { label: "Gratitude", prompt: "Who or what are you grateful for?" },
 ];
 
+/** App version — stamped onto bug reports so you can tie a report to a build. */
+export const APP_VERSION = "0.9.0-beta";
+
 /** All available pillars a user can choose from during onboarding */
 export const AVAILABLE_PILLARS: PillarDefinition[] = [
   {
@@ -197,6 +200,35 @@ export function getGameMode(id?: string): GameModeDef {
 /** Maximum daily quests allowed for a given gamemode */
 export function getDailyQuestCap(gamemodeId?: string): number {
   return getGameMode(gamemodeId).dailyQuests;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Participation bounties — "do X N times → award" milestones         */
+/* ------------------------------------------------------------------ */
+
+export interface BountyTier {
+  count: number;
+  name: string;
+  xp: number;
+}
+
+export const BOUNTY_TIERS: BountyTier[] = [
+  { count: 5, name: "Starter", xp: 25 },
+  { count: 10, name: "Dedicated", xp: 50 },
+  { count: 25, name: "Devoted", xp: 120 },
+  { count: 50, name: "Relentless", xp: 250 },
+  { count: 100, name: "Legend", xp: 600 },
+  { count: 250, name: "Mythic", xp: 1500 },
+];
+
+/** The next unearned bounty tier for a given count (null if all earned). */
+export function nextBounty(count: number): BountyTier | null {
+  return BOUNTY_TIERS.find((t) => count < t.count) || null;
+}
+
+/** All bounty tiers already earned at a given count. */
+export function earnedBounties(count: number): BountyTier[] {
+  return BOUNTY_TIERS.filter((t) => count >= t.count);
 }
 
 /** Kintsugi Repair Quest — generated when a streak resets to help rebuild */
@@ -488,6 +520,8 @@ export interface SkillNode {
   emoji: string;
   requirement: string;
   science: string;
+  /** What the unlock represents — System-voice flavor describing the user's new capability. */
+  perk?: string;
   check: (stats: { streak: number; longestStreak?: number; seams?: number }, completions: number) => boolean;
 }
 
@@ -498,6 +532,7 @@ export const SKILL_NODES: SkillNode[] = [
     emoji: "🌱",
     requirement: "3-day streak",
     science: "Neuroplasticity begins after ~3 days of consistent action.",
+    perk: "The first spark. Your brain has begun rewiring.",
     check: (s) => s.streak >= 3,
   },
   {
@@ -506,6 +541,7 @@ export const SKILL_NODES: SkillNode[] = [
     emoji: "🔄",
     requirement: "7-day streak",
     science: "7 days activates the basal ganglia — automaticity begins.",
+    perk: "Doing has become wanting-to-do. Friction drops.",
     check: (s) => s.streak >= 7,
   },
   {
@@ -514,6 +550,7 @@ export const SKILL_NODES: SkillNode[] = [
     emoji: "🧱",
     requirement: "14-day streak",
     science: "Synaptic consolidation peaks around 2 weeks.",
+    perk: "The pattern is load-bearing. Missing a day costs more.",
     check: (s) => s.streak >= 14,
   },
   {
@@ -522,6 +559,7 @@ export const SKILL_NODES: SkillNode[] = [
     emoji: "🦋",
     requirement: "30-day streak",
     science: "30 days marks the transition from behaviour to identity.",
+    perk: "You stop saying 'I'm trying to'. You say 'I am'.",
     check: (s) => s.streak >= 30 || (s.longestStreak ?? 0) >= 30,
   },
   {
@@ -530,6 +568,7 @@ export const SKILL_NODES: SkillNode[] = [
     emoji: "✨",
     requirement: "1+ gold seam",
     science: "Comebacks are skills. Every repair rewires resilience pathways.",
+    perk: "Returning from a break is harder than never breaking. You did the hard thing.",
     check: (s) => (s.seams ?? 0) >= 1,
   },
   {
@@ -538,6 +577,7 @@ export const SKILL_NODES: SkillNode[] = [
     emoji: "👑",
     requirement: "100+ completions",
     science: "100 repetitions forms procedural memory — effortless action.",
+    perk: "The act has gone from thought to instinct. Identity locked in.",
     check: (_s, completions) => completions >= 100,
   },
 ];
@@ -659,6 +699,56 @@ export function getRankForLevel(level: number): RankDef {
     else break;
   }
   return rank ?? RANKS[0];
+}
+
+// ═══════════════════════════════════════════
+// TITLES — auto-awarded identity badges (Solo-Leveling flavor)
+// Derived from profile state, never stored — retroactive by construction.
+// ═══════════════════════════════════════════
+
+export interface TitleDef {
+  id: string;
+  name: string;
+  description: string;
+  check: (input: {
+    pillars: Record<string, { streak?: number; longestStreak?: number; seams?: number; xp?: number }>;
+    seamsTotal: number;
+    maxStreak: number;
+    maxLongest: number;
+    journalStreak: number;
+    focusSessions: number;
+    level: number;
+  }) => boolean;
+}
+
+export const TITLES: TitleDef[] = [
+  // Streak archetypes
+  { id: "ignited",      name: "Ignited",       description: "First spark — a 3-day streak.",          check: (s) => s.maxStreak >= 3 },
+  { id: "iron_willed",  name: "Iron-Willed",   description: "Two weeks unbroken.",                    check: (s) => s.maxLongest >= 14 },
+  { id: "unstoppable",  name: "Unstoppable",   description: "A 30-day streak — identity made real.", check: (s) => s.maxLongest >= 30 },
+  { id: "centurion",    name: "Centurion",     description: "100 days of consistency.",               check: (s) => s.maxLongest >= 100 },
+  // Comeback / Kintsugi
+  { id: "kintsugi",     name: "Kintsugi",      description: "Repaired with gold. 1+ comeback seam.", check: (s) => s.seamsTotal >= 1 },
+  { id: "phoenix",      name: "Phoenix",       description: "Five comebacks. Failure is your forge.", check: (s) => s.seamsTotal >= 5 },
+  // Journal
+  { id: "scribe",       name: "Scribe",        description: "7-day journaling streak.",               check: (s) => s.journalStreak >= 7 },
+  { id: "chronicler",   name: "Chronicler",    description: "30-day journaling streak.",              check: (s) => s.journalStreak >= 30 },
+  // Focus
+  { id: "deep_diver",   name: "Deep Diver",    description: "10 focus raids cleared.",                check: (s) => s.focusSessions >= 10 },
+  { id: "monk_mind",    name: "Monk Mind",     description: "50 focus raids cleared.",                check: (s) => s.focusSessions >= 50 },
+  // Progression
+  { id: "ascended",     name: "Ascended",      description: "Level 25. The System notices.",          check: (s) => s.level >= 25 },
+];
+
+/** Returns all titles the user has earned, in award order. */
+export function earnedTitles(input: Parameters<TitleDef["check"]>[0]): TitleDef[] {
+  return TITLES.filter((t) => t.check(input));
+}
+
+/** The user's currently-displayed title = the most recent earned (last in the list). */
+export function activeTitle(input: Parameters<TitleDef["check"]>[0]): TitleDef | undefined {
+  const earned = earnedTitles(input);
+  return earned[earned.length - 1];
 }
 
 // ═══════════════════════════════════════════

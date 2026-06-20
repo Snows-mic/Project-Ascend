@@ -9,7 +9,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { UserProfile, DailyLog } from "../types";
 import {
-  MOODS,
   promptForDate,
   WEEKLY_REVIEW_PROMPTS,
 } from "../data";
@@ -24,8 +23,40 @@ import {
   ChevronUp,
   Mic,
   Square,
+  Zap,
+  Smile,
+  Meh,
+  Frown,
+  Angry,
+  Sparkles,
+  AlertTriangle,
+  Heart,
+  type LucideIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+
+/** Custom, on-brand mood glyphs — replaces OS-rendered emoji which look low-rent on mobile. */
+interface MoodGlyph {
+  key: string;       // canonical id (stored)
+  label: string;     // shown under the glyph + in history
+  icon: LucideIcon;
+  fromColor: string; // tailwind gradient classes
+  toColor: string;
+  ringColor: string; // tailwind ring class for selected state
+}
+
+const MOOD_GLYPHS: MoodGlyph[] = [
+  { key: "calm",      label: "Calm",      icon: Smile,          fromColor: "from-emerald-400",  toColor: "to-teal-500",   ringColor: "ring-emerald-400/70" },
+  { key: "energized", label: "Energized", icon: Zap,            fromColor: "from-amber-400",    toColor: "to-yellow-500", ringColor: "ring-amber-400/70" },
+  { key: "neutral",   label: "Neutral",   icon: Meh,            fromColor: "from-slate-400",    toColor: "to-zinc-500",   ringColor: "ring-slate-400/70" },
+  { key: "frustrated",label: "Friction",  icon: Angry,          fromColor: "from-rose-500",     toColor: "to-red-600",    ringColor: "ring-rose-500/70" },
+  { key: "low",       label: "Low",       icon: Frown,          fromColor: "from-sky-500",      toColor: "to-blue-600",   ringColor: "ring-sky-400/70" },
+  { key: "tired",     label: "Tired",     icon: Moon,           fromColor: "from-indigo-500",   toColor: "to-purple-600", ringColor: "ring-indigo-400/70" },
+  { key: "anxious",   label: "Anxious",   icon: AlertTriangle,  fromColor: "from-orange-500",   toColor: "to-amber-600",  ringColor: "ring-orange-400/70" },
+  { key: "joyful",    label: "Joyful",    icon: Sparkles,       fromColor: "from-fuchsia-500",  toColor: "to-pink-500",   ringColor: "ring-fuchsia-400/70" },
+];
+
+const moodByKey = (k?: string) => MOOD_GLYPHS.find((m) => m.key === k);
 
 interface JournalViewProps {
   profile: UserProfile;
@@ -171,25 +202,56 @@ export default function JournalView({
           })}
         </p>
 
-        {/* Mood */}
+        {/* Mood — custom glyphs (no OS emoji) */}
         <div>
-          <label className="mb-2 block text-xs font-medium text-white/50">
-            How are you feeling?
-          </label>
-          <div className="flex gap-2">
-            {MOODS.map((m) => (
-              <button
-                key={m}
-                onClick={() => setMood(mood === m ? "" : m)}
-                className={`h-10 w-10 rounded-xl text-lg transition-all ${
-                  mood === m
-                    ? "bg-brand/25 ring-2 ring-brand-neon scale-105"
-                    : "bg-white/[0.04] hover:bg-white/[0.08]"
-                }`}
-              >
-                {m}
-              </button>
-            ))}
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-xs font-medium text-white/50">
+              How are you feeling?
+            </label>
+            <AnimatePresence mode="wait">
+              {mood && (
+                <motion.span
+                  key={mood}
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="text-[11px] font-semibold tracking-wide text-white/80"
+                >
+                  {moodByKey(mood)?.label}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+          <div className="grid grid-cols-8 gap-1.5">
+            {MOOD_GLYPHS.map((m) => {
+              const Icon = m.icon;
+              const selected = mood === m.key;
+              return (
+                <motion.button
+                  key={m.key}
+                  onClick={() => setMood(selected ? "" : m.key)}
+                  whileTap={{ scale: 0.88 }}
+                  animate={selected ? { scale: 1.06 } : { scale: 1 }}
+                  transition={{ type: "spring", stiffness: 360, damping: 22 }}
+                  aria-pressed={selected}
+                  aria-label={m.label}
+                  className={`relative aspect-square w-full rounded-2xl bg-gradient-to-br ${m.fromColor} ${m.toColor} flex items-center justify-center transition-shadow ${
+                    selected
+                      ? `ring-2 ${m.ringColor} shadow-lg`
+                      : "opacity-60 ring-1 ring-white/5 hover:opacity-90"
+                  }`}
+                >
+                  <Icon className="h-[18px] w-[18px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" strokeWidth={2.4} />
+                  {selected && (
+                    <motion.span
+                      aria-hidden
+                      layoutId="mood-active-dot"
+                      className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-white"
+                    />
+                  )}
+                </motion.button>
+              );
+            })}
           </div>
         </div>
 
@@ -364,7 +426,19 @@ export default function JournalView({
                       day: "numeric",
                     })}
                   </span>
-                  {h.mood && <span className="text-sm">{h.mood}</span>}
+                  {h.mood && (() => {
+                    const g = moodByKey(h.mood);
+                    if (!g) return null;
+                    const Icon = g.icon;
+                    return (
+                      <span
+                        className={`flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br ${g.fromColor} ${g.toColor}`}
+                        title={g.label}
+                      >
+                        <Icon className="h-3 w-3 text-white" strokeWidth={2.4} />
+                      </span>
+                    );
+                  })()}
                 </div>
                 <p className="line-clamp-2 text-xs text-white/60">{h.text}</p>
               </div>

@@ -33,6 +33,67 @@ export async function logoutUser() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Bug reports — test-user feedback → owner reads them in the          */
+/*  Supabase dashboard (bug_reports table). Falls back to a localStorage*/
+/*  queue if the network/insert fails, then flushes on next open.       */
+/* ------------------------------------------------------------------ */
+
+export interface BugReport {
+  user_id?: string;
+  email?: string;
+  category: string;
+  message: string;
+  screen?: string;
+  app_version?: string;
+  user_agent?: string;
+  viewport?: string;
+}
+
+const BUG_QUEUE_KEY = "projectff_bugqueue";
+
+function queueBugReport(r: BugReport) {
+  try {
+    const q: BugReport[] = JSON.parse(
+      localStorage.getItem(BUG_QUEUE_KEY) || "[]",
+    );
+    q.push(r);
+    localStorage.setItem(BUG_QUEUE_KEY, JSON.stringify(q));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Insert a bug report. Returns "sent" if it reached Supabase, "queued" if it
+ *  was stored locally to retry later (offline / table missing / RLS). */
+export async function submitBugReport(r: BugReport): Promise<"sent" | "queued"> {
+  try {
+    const { error } = await supabase.from("bug_reports").insert(r);
+    if (error) throw error;
+    return "sent";
+  } catch {
+    queueBugReport(r);
+    return "queued";
+  }
+}
+
+/** Best-effort flush of any locally queued reports (call on app/modal open). */
+export async function flushBugReports(): Promise<void> {
+  let q: BugReport[];
+  try {
+    q = JSON.parse(localStorage.getItem(BUG_QUEUE_KEY) || "[]");
+  } catch {
+    return;
+  }
+  if (!q.length) return;
+  const remaining: BugReport[] = [];
+  for (const r of q) {
+    const { error } = await supabase.from("bug_reports").insert(r);
+    if (error) remaining.push(r);
+  }
+  localStorage.setItem(BUG_QUEUE_KEY, JSON.stringify(remaining));
+}
+
+/* ------------------------------------------------------------------ */
 /*  Database helpers (Supabase → typed wrappers)                       */
 /* ------------------------------------------------------------------ */
 

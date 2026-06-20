@@ -5,9 +5,14 @@
 
 import { StreakEvent } from "./streak";
 import { haptic } from "./haptics";
-import { requestNotificationPermission } from "./notifications";
-import { getDailyQuestCap, generateRepairQuests } from "./data";
-import type { Quest, DailyLog } from "./types";
+import {
+  requestNotificationPermission,
+  hasNotificationPermission,
+  scheduleReminder,
+  NotifVoice,
+} from "./notifications";
+import { getDailyQuestCap, generateRepairQuests, createDefaultProfile } from "./data";
+import type { Quest, DailyLog, UserProfile } from "./types";
 
 // Components
 import AuthScreen from "./components/AuthScreen";
@@ -18,14 +23,24 @@ import PillarTracker from "./components/PillarTracker";
 import QuestsAchievements from "./components/QuestsAchievements";
 import CaptureSheet from "./components/CaptureSheet";
 import LevelUpNotification from "./components/LevelUpNotification";
+import XpBurst from "./components/XpBurst";
+import SystemToast from "./components/SystemToast";
 import AppSidebar from "./components/AppSidebar";
 import AppHeader from "./components/AppHeader";
 import AppTabNav from "./components/AppTabNav";
 import AppRightRail from "./components/AppRightRail";
 import WeeklyInsights from "./components/WeeklyInsights";
+import BugReport from "./components/BugReport";
+import TodayHub from "./components/TodayHub";
+import JournalView from "./components/JournalView";
+import RadarChart from "./components/RadarChart";
+import SkillTree from "./components/SkillTree";
+import HunterCard from "./components/HunterCard";
+import FocusRaid from "./components/FocusRaid";
+import { flushBugReports, upsertProfile } from "./supabase";
 
 // Icons
-import { Calendar, Award, Activity, Flame, Plus } from "lucide-react";
+import { Calendar, Award, Activity, Flame, Plus, Bug, Home, BookOpen, BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useGameState } from "./hooks/useGameState";
 import type { AppTab } from "./hooks/useGameState";
@@ -35,7 +50,15 @@ import { useQuestActions } from "./hooks/useQuestActions";
 import { useJournalActions } from "./hooks/useJournalActions";
 import { useNonNegotiables } from "./hooks/useNonNegotiables";
 import { useRecurringTasks, markMaterialised } from "./hooks/useRecurringTasks";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+/** Whole-day gap between two YYYY-MM-DD dates (UTC). */
+function dayGap(from: string, to: string): number {
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 99;
+  return Math.round((b - a) / 86_400_000);
+}
 
 const STREAK_MESSAGES: Record<StreakEvent, string> = {
   started: "🔥 First light. The streak begins.",
@@ -63,6 +86,30 @@ export default function App() {
     nonNegotiableTemplates, setNonNegotiableTemplates,
     todayString,
   } = useGameState();
+
+  // Bug-report modal (test-user feedback)
+  const [bugOpen, setBugOpen] = useState(false);
+  // Deep Focus raid overlay + Stats sub-view + Plan-tomorrow deep-link
+  const [focusOpen, setFocusOpen] = useState(false);
+  const [statsView, setStatsView] = useState<
+    "overview" | "radar" | "skills" | "pillars" | "insights"
+  >("overview");
+  const [scheduleStartDate, setScheduleStartDate] = useState<string | undefined>(
+    undefined,
+  );
+  // Deep-link from Today → Bounties section inside the Quests tab
+  const [questsScrollTarget, setQuestsScrollTarget] = useState<string | null>(
+    null,
+  );
+  const goToBounties = () => {
+    setQuestsScrollTarget("bounties");
+    setActiveTab("quests");
+  };
+
+  // Best-effort: flush any bug reports queued while offline, once on load.
+  useEffect(() => {
+    flushBugReports();
+  }, []);
 
   // ── Auth lifecycle + offline/login/logout ──
   const {
@@ -178,6 +225,110 @@ export default function App() {
     localStorage.setItem("projectff_quests", JSON.stringify(updated));
   };
 
+  // ── Today/Journal/Focus handlers (re-merged feature set) ──
+  const handleTogglePin = (questId: string) => {
+    const q = quests.find((x) => x.id === questId);
+    if (!q) return;
+    if (!q.pinned && quests.filter((x) => x.pinned).length >= 3) return;
+    haptic("tap");
+    handleUpdateQuest(questId, { pinned: !q.pinned });
+  };
+
+  const handleReset = async () => {
+    // Wipe ALL local app state (profile, quests, every daily log + history,
+    // templates, queues) so derived stats — radar, skills, insights, streaks,
+    // participation — reset too. Keep only the offline-mode flag.
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith("projectff_") && k !== "projectff_offline")
+      .forEach((k) => localStorage.removeItem(k));
+
+    // Signed-in: reset the cloud profile too, or realtime sync restores old stats.
+    if (currentUser && !offlineMode) {
+      try {
+        await upsertProfile(
+          createDefaultProfile(
+            currentUser.id,
+            currentUser.email || "",
+            currentUser.user_metadata?.full_name || "User",
+          ),
+        );
+      } catch (e) {
+        console.error("Cloud reset failed:", e);
+      }
+    }
+    location.reload();
+  };
+
+  const handleSaveJournal = (fields: Partial<DailyLog>) => {
+    if (!profile || !todayLog) return;
+    const nextLog: DailyLog = { ...todayLog, ...fields };
+    const hasContent = !!(
+      nextLog.journalEntry?.trim() ||
+      nextLog.morningIntention?.trim() ||
+      nextLog.gratitude?.trim() ||
+      nextLog.win?.trim()
+    );
+    let nextProfile = profile;
+    if (hasContent && profile.journalLastDate !== todayString) {
+      const gap = profile.journalLastDate
+        ? dayGap(profile.journalLastDate, todayString)
+        : 99;
+      const newStreak = gap === 1 ? (profile.journalStreak || 0) + 1 : 1;
+      nextProfile = {
+        ...profile,
+        journalStreak: newStreak,
+        journalLastDate: todayString,
+        journalLongest: Math.max(profile.journalLongest || 0, newStreak),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    syncProfileAndLog(nextProfile, nextLog);
+  };
+
+  const handlePlanTomorrow = () => {
+    setScheduleStartDate(
+      new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+    );
+    setActiveTab("schedule");
+  };
+
+  const handleFocusComplete = (mins: number) => {
+    if (!profile || !todayLog) return;
+    const pillarKey = profile.pillars["productivity"]
+      ? "productivity"
+      : Object.keys(profile.pillars)[0];
+    const xpEarned = mins;
+    const nextProfile: UserProfile = { ...profile };
+    const oldLevel = nextProfile.level;
+    nextProfile.xp += xpEarned;
+    nextProfile.level = Math.floor(nextProfile.xp / 100) + 1;
+    nextProfile.focusMinutes = (nextProfile.focusMinutes ?? 0) + mins;
+    nextProfile.focusSessions = (nextProfile.focusSessions ?? 0) + 1;
+    if (pillarKey && nextProfile.pillars[pillarKey]) {
+      const ps = nextProfile.pillars[pillarKey];
+      const nx = ps.xp + xpEarned;
+      nextProfile.pillars[pillarKey] = {
+        ...ps,
+        xp: nx,
+        level: Math.floor(nx / 100) + 1,
+      };
+    }
+    if (nextProfile.level > oldLevel) {
+      nextProfile.levelUpHistory = [
+        ...(nextProfile.levelUpHistory || []),
+        {
+          fromLevel: oldLevel,
+          toLevel: nextProfile.level,
+          date: new Date().toISOString(),
+        },
+      ];
+      setLevelUpData({ fromLevel: oldLevel, toLevel: nextProfile.level });
+    }
+    nextProfile.updatedAt = new Date().toISOString();
+    haptic("levelup");
+    syncProfileAndLog(nextProfile, todayLog);
+  };
+
   // ── Onboarding, journal, pillar weight/log, streak toast ──
   const {
     handleOnboardingComplete,
@@ -206,6 +357,38 @@ export default function App() {
       requestNotificationPermission();
     }
   }, [levelUpData]);
+
+  // ── Auto-schedule today's streak-save reminder on app open ──
+  // If notifications are granted AND user has an active streak AND nothing
+  // is done yet today, schedule an 8pm "don't break the chain" notification.
+  useEffect(() => {
+    if (!profile || !todayLog) return;
+    if (!hasNotificationPermission()) return;
+
+    const lastScheduled = localStorage.getItem("projectff_notif_last");
+    if (lastScheduled === todayString) return; // already scheduled today
+
+    const pillarKeys = Object.keys(profile.pillars);
+    const activeStreaks = pillarKeys.filter(
+      (k) => (profile.pillars[k].streak || 0) > 0,
+    );
+    if (activeStreaks.length === 0) return;
+
+    const doneToday = Object.values(todayLog.completedTasks || {}).some(
+      (v) => v === true,
+    );
+    if (doneToday) return;
+
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(20, 0, 0, 0); // 8pm
+    const delay = target.getTime() - now.getTime();
+    if (delay <= 0 || delay > 86_400_000) return;
+
+    const pillarLabel = activeStreaks[0];
+    scheduleReminder(NotifVoice.streakAtRisk(pillarLabel), delay);
+    localStorage.setItem("projectff_notif_last", todayString);
+  }, [profile, todayLog, todayString]);
 
   // ── Generate repair quests on streak reset ──
   const longestPillarStreak = Math.max(
@@ -309,10 +492,11 @@ export default function App() {
   const xpInLevel = profile.xp % 100;
 
   const navItems = [
-    { id: "dashboard" as const, icon: Activity, label: "Command" },
+    { id: "today" as const, icon: Home, label: "Today" },
     { id: "schedule" as const, icon: Calendar, label: "Schedule" },
-    { id: "tracker" as const, icon: Flame, label: "Pillar Labs" },
-    { id: "quests" as const, icon: Award, label: "Bounties" },
+    { id: "quests" as const, icon: Award, label: "Quests" },
+    { id: "journal" as const, icon: BookOpen, label: "Journal" },
+    { id: "stats" as const, icon: BarChart3, label: "Stats" },
   ];
 
   return (
@@ -340,6 +524,11 @@ export default function App() {
           hasCloudUser={!!currentUser}
           currentEmail={currentUser?.email}
           onGoogleLogin={handleGoogleLogin}
+          profileLevel={profile.level}
+          xpInLevel={xpInLevel}
+          totalSeams={totalSeams}
+          maxStreak={Math.max(0, ...Object.values(profile.pillars).map((p) => p.streak || 0))}
+          activeStreakCount={Object.values(profile.pillars).filter((p) => (p.streak || 0) > 0).length}
         />
         <AppTabNav
           navItems={navItems}
@@ -347,7 +536,7 @@ export default function App() {
           onTabChange={(t) => setActiveTab(t as AppTab)}
         />
 
-        <main className="flex-1 px-4 md:px-6 py-4 md:py-6 overflow-y-auto">
+        <main className="flex-1 px-4 md:px-6 pt-4 md:pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-6 overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -356,17 +545,20 @@ export default function App() {
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.25, ease: "easeInOut" }}
             >
-              {activeTab === "dashboard" && (
-                <Dashboard
+              {activeTab === "today" && (
+                <TodayHub
                   profile={profile}
                   todayLog={todayLog}
                   quests={quests}
                   onToggleQuest={handleToggleQuest}
-                  onLogout={handleLogout}
-                  onReset={() => {}}
-                  onAddDomain={() => {}}
-                  offlineMode={offlineMode}
-                  onSyncAuth={handleGoogleLogin}
+                  onTogglePin={handleTogglePin}
+                  onQuickAdd={handleQuickAdd}
+                  onSaveJournal={handleSaveJournal}
+                  onGoToJournal={() => setActiveTab("journal")}
+                  onGoToSchedule={() => setActiveTab("schedule")}
+                  onGoToBounties={goToBounties}
+                  onPlanTomorrow={handlePlanTomorrow}
+                  onStartFocus={() => setFocusOpen(true)}
                 />
               )}
               {activeTab === "schedule" && (
@@ -376,15 +568,8 @@ export default function App() {
                   quests={quests}
                   onToggleQuest={handleToggleQuest}
                   onSchedule={handleSchedule}
-                />
-              )}
-              {activeTab === "tracker" && (
-                <PillarTracker
-                  profile={profile}
-                  todayLog={todayLog}
-                  onUpdateLog={handleUpdatePillarLog}
-                  pillarIds={pillarIds}
-                  onUpdateWeight={handleUpdatePillarWeight}
+                  initialDate={scheduleStartDate}
+                  onConsumeInitialDate={() => setScheduleStartDate(undefined)}
                 />
               )}
               {activeTab === "quests" && (
@@ -404,14 +589,80 @@ export default function App() {
                   nnTotalToday={nnTotalToday}
                   dailyQuestCap={questCap}
                   dailyActiveQuests={dailyActiveQuests}
+                  scrollTarget={questsScrollTarget}
+                  onScrolled={() => setQuestsScrollTarget(null)}
                 />
               )}
-              {activeTab === "insights" && (
-                <WeeklyInsights
+              {activeTab === "journal" && (
+                <JournalView
                   profile={profile}
-                  recentLogs={recentLogs}
-                  pillarIds={pillarIds}
+                  todayLog={todayLog}
+                  onSaveJournal={handleSaveJournal}
                 />
+              )}
+              {activeTab === "stats" && (
+                <div className="space-y-5">
+                  <div className="flex w-fit flex-wrap gap-1 rounded-xl border border-neutral-850/80 bg-neutral-900 p-1">
+                    {(["overview", "radar", "skills", "pillars", "insights"] as const).map(
+                      (v) => (
+                        <button
+                          key={v}
+                          onClick={() => setStatsView(v)}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-sans font-semibold capitalize transition-all cursor-pointer ${
+                            statsView === v
+                              ? "bg-brand/80 text-white"
+                              : "text-neutral-400 hover:text-neutral-200"
+                          }`}
+                        >
+                          {v}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  {statsView === "overview" && (
+                    <>
+                      <HunterCard
+                        profile={profile}
+                        quests={quests}
+                        journalStreak={profile.journalStreak ?? 0}
+                        focusSessions={profile.focusSessions ?? 0}
+                      />
+                      <Dashboard
+                        profile={profile}
+                        todayLog={todayLog}
+                        quests={quests}
+                        onToggleQuest={handleToggleQuest}
+                        onLogout={handleLogout}
+                        onReset={handleReset}
+                        onAddDomain={() => {}}
+                        offlineMode={offlineMode}
+                        onSyncAuth={handleGoogleLogin}
+                      />
+                    </>
+                  )}
+                  {statsView === "radar" && (
+                    <RadarChart profile={profile} quests={quests} />
+                  )}
+                  {statsView === "skills" && (
+                    <SkillTree profile={profile} quests={quests} />
+                  )}
+                  {statsView === "pillars" && (
+                    <PillarTracker
+                      profile={profile}
+                      todayLog={todayLog}
+                      onUpdateLog={handleUpdatePillarLog}
+                      pillarIds={pillarIds}
+                      onUpdateWeight={handleUpdatePillarWeight}
+                    />
+                  )}
+                  {statsView === "insights" && (
+                    <WeeklyInsights
+                      profile={profile}
+                      recentLogs={recentLogs}
+                      pillarIds={pillarIds}
+                    />
+                  )}
+                </div>
               )}
             </motion.div>
           </AnimatePresence>
@@ -426,10 +677,15 @@ export default function App() {
         totalSeams={totalSeams}
         pillarIds={pillarIds}
         pillarStreaks={pillarStreaks}
-        achievementCount={profile.achievements.length}
+        achievementCount={profile.achievements?.length ?? 0}
       />
 
       {/* ═══════════════ OVERLAYS ═══════════════ */}
+
+      {/* XP burst on every completion */}
+      <XpBurst />
+      {/* System voice toasts for non-completion events */}
+      <SystemToast />
 
       {/* Level-up notification */}
       {levelUpData && (
@@ -456,14 +712,26 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Deep Focus raid overlay */}
+      <FocusRaid
+        open={focusOpen}
+        sessionsCleared={profile.focusSessions ?? 0}
+        onComplete={handleFocusComplete}
+        onClose={() => setFocusOpen(false)}
+      />
+
       {/* FAB — global capture */}
-      <button
+      <motion.button
         onClick={() => { haptic("tap"); setOpenCapture(true); }}
-        className="fixed right-4 bottom-20 md:bottom-6 z-60 h-14 w-14 rounded-2xl bg-brand hover:bg-brand-dark text-white flex items-center justify-center shadow-lg shadow-brand/30 border border-brand-neon/30 transition-all active:scale-95 cursor-pointer"
+        whileTap={{ scale: 0.9, rotate: 90 }}
+        transition={{ type: "spring", stiffness: 360, damping: 20 }}
+        className="fixed right-4 z-[55] h-14 w-14 rounded-full bg-gradient-to-br from-brand to-brand-dark text-white flex items-center justify-center shadow-2xl shadow-brand/40 ring-2 ring-brand-neon/40 cursor-pointer md:bottom-6"
+        style={{ bottom: "calc(env(safe-area-inset-bottom) + 5.25rem)" }}
         aria-label="Capture a task or thought"
       >
-        <Plus className="h-6 w-6" />
-      </button>
+        <span aria-hidden className="absolute inset-0 rounded-full bg-brand-neon/30 blur-xl pointer-events-none" />
+        <Plus className="relative h-7 w-7" strokeWidth={2.4} />
+      </motion.button>
 
       {/* Capture Sheet */}
       <CaptureSheet
@@ -474,6 +742,23 @@ export default function App() {
         onSaveNote={handleSaveNote}
         onToggleQuest={handleToggleQuest}
         onAddNonNegotiable={addNonNegotiable}
+      />
+
+      {/* Beta — report a bug (testers) */}
+      <button
+        onClick={() => setBugOpen(true)}
+        className="fixed left-4 bottom-20 md:bottom-6 z-60 flex h-11 items-center gap-1.5 rounded-2xl border border-neutral-700 bg-neutral-900/90 px-3.5 text-xs font-semibold text-neutral-300 shadow-lg backdrop-blur-md transition-all hover:bg-neutral-800 hover:text-white active:scale-95 cursor-pointer"
+        aria-label="Report a bug"
+      >
+        <Bug className="h-4 w-4 text-brand-neon" />
+        <span className="hidden sm:inline">Report a bug</span>
+      </button>
+
+      <BugReport
+        open={bugOpen}
+        onClose={() => setBugOpen(false)}
+        profile={profile}
+        screen={activeTab}
       />
 
     </div>

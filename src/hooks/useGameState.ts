@@ -23,7 +23,12 @@ function loadFromLocal<T>(key: string, fallback: T): T {
   }
 }
 
-export type AppTab = "dashboard" | "schedule" | "tracker" | "quests" | "insights";
+export type AppTab =
+  | "today"
+  | "schedule"
+  | "quests"
+  | "journal"
+  | "stats";
 
 export interface LevelUpPayload {
   fromLevel: number;
@@ -66,7 +71,7 @@ export function useGameState() {
   );
 
   // ── UI ──
-  const [activeTab, setActiveTab] = useState<AppTab>("dashboard");
+  const [activeTab, setActiveTab] = useState<AppTab>("today");
   const [connectionTested, setConnectionTested] = useState(false);
   const [openCapture, setOpenCapture] = useState(false);
 

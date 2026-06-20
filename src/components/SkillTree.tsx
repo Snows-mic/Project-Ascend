@@ -42,13 +42,19 @@ export default function SkillTree({ profile, quests }: SkillTreeProps) {
 
   return (
     <div className="space-y-5">
-      <div className="system-card rounded-2xl p-5">
-        <h3 className="font-display text-sm font-bold uppercase tracking-tight text-neutral-100">
-          Skill Trees
+      <div className="system-card relative overflow-hidden rounded-2xl p-5">
+        <span aria-hidden className="pointer-events-none absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand-neon/60 to-transparent" />
+        <div className="flex items-center gap-2">
+          <span className="font-hud text-[9px] tracking-[0.25em] text-brand-neon">[ SYSTEM ]</span>
+          <span className="font-mono text-[9px] tracking-widest text-white/30">// SKILL TREES</span>
+        </div>
+        <h3 className="mt-2 font-display text-[20px] font-bold tracking-tight text-neutral-100">
+          Earned, never bought.
         </h3>
         <p className="mt-1 text-xs leading-relaxed text-neutral-400">
           Skills unlock through <span className="text-brand-neon">consistency</span> —
-          streaks, repetitions, and comebacks. XP can't buy them.
+          streaks, repetitions, and comebacks. XP can't buy them. Each tier
+          rewires what you are, not what you can do.
         </p>
       </div>
 
@@ -143,6 +149,16 @@ export default function SkillTree({ profile, quests }: SkillTreeProps) {
                             </span>
                           )}
                         </div>
+                        {/* Perk — System-voice description of what the unlock represents */}
+                        {node.perk && (
+                          <p
+                            className={`mt-0.5 text-[11px] leading-relaxed ${
+                              unlocked ? "text-amber-100/80 italic" : "text-neutral-400"
+                            }`}
+                          >
+                            {node.perk}
+                          </p>
+                        )}
                         <p className="mt-0.5 text-[10px] leading-relaxed text-neutral-500">
                           {node.science}
                         </p>

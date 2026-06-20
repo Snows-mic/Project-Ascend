@@ -50,3 +50,32 @@ create policy "Users manage their own daily logs"
   for all
   using  (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────────────────────
+-- bug_reports  (test-user feedback → read in the Supabase dashboard)
+-- Anyone (incl. signed-out / offline testers) can FILE a report.
+-- No SELECT policy → reports are private; you read them in the dashboard
+-- (Table editor → bug_reports) which bypasses RLS.
+-- ─────────────────────────────────────────────────────────────
+create table if not exists public.bug_reports (
+  id           bigint generated always as identity primary key,
+  created_at   timestamptz default now(),
+  user_id      text,
+  email        text,
+  category     text,          -- bug | confusing | idea | other
+  message      text not null,
+  screen       text,          -- which tab/screen they were on
+  app_version  text,
+  user_agent   text,
+  viewport     text,
+  status       text default 'new'   -- triage: new | seen | fixed
+);
+
+alter table public.bug_reports enable row level security;
+
+drop policy if exists "Anyone can file a bug report" on public.bug_reports;
+create policy "Anyone can file a bug report"
+  on public.bug_reports
+  for insert
+  to anon, authenticated
+  with check (true);

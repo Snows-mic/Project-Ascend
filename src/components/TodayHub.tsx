@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { UserProfile, DailyLog, Quest } from "../types";
-import { getPillarDef, PRIORITY_META } from "../data";
+import { getPillarDef, PRIORITY_META, earnedBounties, nextBounty } from "../data";
 import {
   Sunrise,
   Moon,
@@ -19,10 +19,12 @@ import {
   BookOpen,
   ChevronRight,
   CalendarPlus,
-  RotateCcw,
   Swords,
+  Award,
+  Flame,
 } from "lucide-react";
 import { motion } from "motion/react";
+import DailySeal from "./DailySeal";
 
 interface TodayHubProps {
   profile: UserProfile;
@@ -34,8 +36,8 @@ interface TodayHubProps {
   onSaveJournal: (fields: Partial<DailyLog>) => void;
   onGoToJournal: () => void;
   onGoToSchedule: () => void;
+  onGoToBounties: () => void;
   onPlanTomorrow: () => void;
-  onReset: () => void;
   onStartFocus: () => void;
 }
 
@@ -49,13 +51,12 @@ export default function TodayHub({
   onSaveJournal,
   onGoToJournal,
   onGoToSchedule,
+  onGoToBounties,
   onPlanTomorrow,
-  onReset,
   onStartFocus,
 }: TodayHubProps) {
   const [quick, setQuick] = useState("");
   const [intention, setIntention] = useState(todayLog.morningIntention || "");
-  const [confirmReset, setConfirmReset] = useState(false);
 
   const hour = new Date().getHours();
   const isEvening = hour >= 18;
@@ -88,6 +89,26 @@ export default function TodayHub({
     ...Object.values(profile.pillars).map((p) => p.streak || 0),
   );
 
+  // Bounty teaser — the closest-to-earning bounty, to make Bounties compelling
+  const earnedBountyCount = quests.reduce(
+    (sum, q) => sum + earnedBounties(profile.participation?.[q.id] ?? 0).length,
+    0,
+  );
+  let bountyTeaser = "Repeat quests to earn rewards →";
+  let bestPct = -1;
+  for (const q of quests) {
+    const c = profile.participation?.[q.id] ?? 0;
+    const next = nextBounty(c);
+    if (!next || c === 0) continue;
+    const earned = earnedBounties(c);
+    const floor = earned.length ? earned[earned.length - 1].count : 0;
+    const pct = (c - floor) / (next.count - floor);
+    if (pct > bestPct) {
+      bestPct = pct;
+      bountyTeaser = `${q.title}: ${c}/${next.count} → ${next.name}`;
+    }
+  }
+
   const submitQuick = () => {
     if (!quick.trim()) return;
     onQuickAdd(quick);
@@ -96,14 +117,86 @@ export default function TodayHub({
 
   const allDone = totalCount > 0 && doneCount === totalCount;
 
+  // ── Streak urgency: how many active pillar streaks are at risk tonight? ──
+  const activeStreakCount = Object.values(profile.pillars).filter(
+    (p) => (p.streak || 0) > 0,
+  ).length;
+  const now = new Date();
+  const msToMidnight =
+    new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() -
+    now.getTime();
+  const hoursLeft = Math.floor(msToMidnight / 3_600_000);
+  const minutesLeft = Math.floor((msToMidnight % 3_600_000) / 60_000);
+  const urgencyVisible =
+    !allDone && activeStreakCount > 0 && hour >= 16 && doneCount < totalCount;
+  const urgencyLevel =
+    hoursLeft < 2 ? "critical" : hoursLeft < 4 ? "warning" : "nudge";
+
   return (
     <div className="space-y-4">
+      {/* Sealed Daily Contract — System-issued, must be accepted */}
+      <DailySeal
+        quests={quests}
+        todayLog={todayLog}
+        onToggleQuest={onToggleQuest}
+      />
+
+      {urgencyVisible && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`relative overflow-hidden rounded-2xl border p-4 ${
+            urgencyLevel === "critical"
+              ? "border-rose-500/40 bg-rose-500/10"
+              : urgencyLevel === "warning"
+              ? "border-amber-500/40 bg-amber-500/10"
+              : "border-gold/40 bg-gold/5"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                urgencyLevel === "critical"
+                  ? "bg-rose-500/20 text-rose-300"
+                  : urgencyLevel === "warning"
+                  ? "bg-amber-500/20 text-amber-300"
+                  : "bg-gold/20 text-gold"
+              }`}
+            >
+              <motion.div
+                animate={
+                  urgencyLevel === "critical"
+                    ? { scale: [1, 1.18, 1] }
+                    : { scale: 1 }
+                }
+                transition={{ repeat: Infinity, duration: 1.1 }}
+              >
+                <Flame className="h-5 w-5" />
+              </motion.div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-semibold text-white">
+                {urgencyLevel === "critical"
+                  ? `Streak ends in ${hoursLeft}h ${minutesLeft}m`
+                  : urgencyLevel === "warning"
+                  ? `${hoursLeft}h left to keep your streak`
+                  : `Don't break the chain`}
+              </p>
+              <p className="mt-0.5 text-[12px] text-white/55">
+                {activeStreakCount} active streak{activeStreakCount > 1 ? "s" : ""} ·
+                finish one quest to lock tonight in
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Greeting + day progress ring */}
       <div className="ios-card p-5 flex items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[12px] text-ios-blue font-medium">{dateLabel}</p>
           <h2 className="mt-1 text-[22px] font-bold tracking-tight text-white truncate">
-            {greeting}, {profile.displayName?.split(" ")[0] || "there"}.
+            {greeting}, {profile.systemName?.trim() || profile.displayName?.split(" ")[0] || "there"}.
           </h2>
           <p className="mt-1 text-[13px] text-white/40">
             {allDone
@@ -175,8 +268,37 @@ export default function TodayHub({
         <div className="flex items-center gap-3">
           <Swords className="h-5 w-5 text-ios-blue" />
           <div>
-            <p className="text-[15px] font-semibold text-white">Deep Focus</p>
+            <p className="text-[15px] font-semibold text-white">
+              Deep Focus
+              <span className="ml-1.5 font-mono text-[12px] text-ios-blue">
+                {Number(localStorage.getItem("projectff_focus_minutes")) || 25}m
+              </span>
+            </p>
             <p className="text-[12px] text-white/30">Enter a focus raid — no distractions until it clears.</p>
+          </div>
+        </div>
+        <ChevronRight className="h-5 w-5 text-white/20" />
+      </button>
+
+      {/* Bounties funnel — one tap from Today to the Bounties section */}
+      <button
+        onClick={onGoToBounties}
+        className="w-full flex items-center justify-between p-4 rounded-2xl bg-[#1C1C1E] active:bg-[#2C2C2E] text-left transition-all"
+      >
+        <div className="flex items-center gap-3">
+          <Award className="h-5 w-5 text-[#FFD60A]" />
+          <div>
+            <p className="text-[15px] font-semibold text-white">
+              Bounties
+              {earnedBountyCount > 0 && (
+                <span className="ml-1.5 font-mono text-[12px] text-[#FFD60A]">
+                  {earnedBountyCount} earned
+                </span>
+              )}
+            </p>
+            <p className="text-[12px] text-white/30 truncate max-w-[210px]">
+              {bountyTeaser}
+            </p>
           </div>
         </div>
         <ChevronRight className="h-5 w-5 text-white/20" />
@@ -199,35 +321,55 @@ export default function TodayHub({
             const done = isDone(q);
             const def = getPillarDef(q.pillar);
             return (
-              <div
-                key={q.id}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${
-                  done ? "bg-[#30D158]/5" : "bg-[#1C1C1E]"
-                }`}
-              >
-                <button
-                  onClick={() => onToggleQuest(q.id)}
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
-                    done ? "border-[#30D158] bg-[#30D158] text-white" : "border-white/25 text-transparent"
+              <div key={q.id} className="relative overflow-hidden rounded-xl">
+                {/* Swipe-reveal background — emerald when about to complete */}
+                {!done && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-start bg-emerald-500/20 px-4">
+                    <Check className="h-5 w-5 text-emerald-300" />
+                    <span className="ml-2 text-[12px] font-semibold text-emerald-200">
+                      Release to complete
+                    </span>
+                  </div>
+                )}
+                <motion.div
+                  drag={done ? false : "x"}
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.55}
+                  dragSnapToOrigin
+                  onDragEnd={(_, info) => {
+                    if (!done && info.offset.x > 90) {
+                      onToggleQuest(q.id);
+                    }
+                  }}
+                  whileTap={{ scale: 0.99 }}
+                  className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 touch-pan-y ${
+                    done ? "bg-[#30D158]/5" : "bg-[#1C1C1E]"
                   }`}
                 >
-                  <Check className="h-3 w-3" />
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p className={`truncate text-[14px] font-medium ${done ? "text-white/30 line-through" : "text-white"}`}>
-                    {q.title}
-                  </p>
-                  <p className="text-[11px] text-white/30">
-                    {def?.label}{q.scheduledTime ? ` · ${q.scheduledTime}` : ""}
-                  </p>
-                </div>
-                <button
-                  onClick={() => onTogglePin(q.id)}
-                  className="shrink-0 text-[#FFD60A]"
-                  title="Unpin"
-                >
-                  <Star className="h-4 w-4 fill-[#FFD60A]" />
-                </button>
+                  <button
+                    onClick={() => onToggleQuest(q.id)}
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+                      done ? "border-[#30D158] bg-[#30D158] text-white" : "border-white/25 text-transparent"
+                    }`}
+                  >
+                    <Check className="h-3 w-3" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p className={`truncate text-[14px] font-medium ${done ? "text-white/30 line-through" : "text-white"}`}>
+                      {q.title}
+                    </p>
+                    <p className="text-[11px] text-white/30">
+                      {def?.label}{q.scheduledTime ? ` · ${q.scheduledTime}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onTogglePin(q.id)}
+                    className="shrink-0 text-[#FFD60A]"
+                    title="Unpin"
+                  >
+                    <Star className="h-4 w-4 fill-[#FFD60A]" />
+                  </button>
+                </motion.div>
               </div>
             );
           })}
@@ -303,35 +445,6 @@ export default function TodayHub({
           <ChevronRight className="h-5 w-5 text-white/20" />
         </div>
       </button>
-
-      {/* Reset / start over */}
-      <div className="pt-2 pb-1 text-center">
-        {confirmReset ? (
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-[13px] text-[#FF9F0A]">Reset everything?</span>
-            <button
-              onClick={() => { setConfirmReset(false); onReset(); }}
-              className="px-3 py-1.5 rounded-lg text-[13px] text-[#FF453A] active:bg-[#FF453A]/10 font-medium"
-            >
-              Yes, reset
-            </button>
-            <button
-              onClick={() => setConfirmReset(false)}
-              className="px-3 py-1.5 rounded-lg text-[13px] text-white/60 active:bg-white/10 font-medium"
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setConfirmReset(true)}
-            className="inline-flex items-center gap-1.5 text-[13px] text-white/25 active:text-[#FF9F0A] font-medium"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset progress
-          </button>
-        )}
-      </div>
     </div>
   );
 }

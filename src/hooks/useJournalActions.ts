@@ -10,7 +10,7 @@ import { useEffect, useCallback } from "react";
 import { User } from "@supabase/supabase-js";
 import { upsertProfile, upsertDailyLog } from "../supabase";
 import { UserProfile, DailyLog, Quest, Achievement, QuestionnaireAnswers } from "../types";
-import { generateStarterQuests, generateAchievements } from "../data";
+import { generateAchievements } from "../data";
 import type { StreakToast, LevelUpPayload } from "./useGameState";
 
 interface UseJournalActionsInput {
@@ -57,6 +57,7 @@ export function useJournalActions({
       pillarIds: string[],
       weights: Record<string, number>,
       questionnaire: QuestionnaireAnswers,
+      opts?: { seedFirstQuest?: boolean; customQuests?: Quest[]; systemName?: string },
     ) => {
       if (!profile) return;
       const pillars: Record<
@@ -72,7 +73,7 @@ export function useJournalActions({
         };
       }
 
-      const newQuests = generateStarterQuests(pillarIds);
+      const newQuests: Quest[] = opts?.customQuests?.length ? opts.customQuests : [];
       const newAchievements = generateAchievements(pillarIds);
 
       const updatedProfile: UserProfile = {
@@ -80,6 +81,7 @@ export function useJournalActions({
         pillars,
         onboardingComplete: true,
         questionnaire: questionnaire as any,
+        ...(opts?.systemName ? { systemName: opts.systemName } : {}),
         updatedAt: new Date().toISOString(),
       };
 

@@ -33,6 +33,33 @@ shipped (typecheck clean). On-device voice journaling is in; **cloud AI**
 
 ## ✅ Done — by phase
 
+### Phase: Mobile UX polish (4 tasks)
+- ✅ **Deep Focus presets 25/60/90 + persistent** — `FocusRaid` durations changed 50→60; choice saved to `projectff_focus_minutes` and loaded as the default on reopen; Today's Deep Focus card shows the current duration (e.g. "60m"). Verified live.
+- ✅ **Today → Bounties funnel** — one-tap Bounties card on Today (with a live teaser, e.g. "Morning workout: 12/25 → Devoted") deep-links to the Quests tab and smooth-scrolls to the Bounties section (`scrollTarget` prop + `scroll-mt`). Verified.
+- ✅ **Full-page visibility** — removed the redundant top pill nav (two mobile navs → one thumb-zone bottom bar); added `env(safe-area-inset-bottom)` + min-height + bigger tap targets to the bottom nav; gave `<main>` bottom padding (`6rem + safe-area`) so content never hides behind the nav/FAB.
+- ✅ **Mobile-first polish** — single bottom nav, thumb-zone targets, safe-area aware, consistent with existing iOS-style design tokens; desktop unaffected (nav is `md:hidden`).
+- ✅ Typecheck + production build pass.
+
+### Phase: Reset fix + placement
+- ✅ **Bug fixed:** `handleReset` only cleared profile/today-log/quests/achievements — leaving daily-log history, templates, and (for signed-in users) the **cloud profile**, so stats survived. Now it wipes **all `projectff_*` keys** (except the offline flag) AND, when signed in, upserts a fresh default profile to Supabase so realtime sync can't restore old stats. Verified: xp/level/streaks/journal-streak/focus/insights-history all reset to zero.
+- ✅ **Placement:** removed the redundant reset from the **Today home** (a destructive action shouldn't sit on the daily screen); kept the single clear, confirm-gated reset in **Stats → Overview** ("clear but out of the way").
+- ✅ Typecheck + production build pass.
+
+### Phase: Fork reconciliation — ALL features merged into the deployable app
+- ✅ **Root cause:** a parallel agent rewrote `App.tsx` into a sidebar/hooks architecture and didn't import the feature components — orphaning Today/Journal/Radar/SkillTree/FocusRaid and stripping Boss Fights + Bounties from `QuestsAchievements`; `BOUNTY_TIERS` was dropped from `data.ts`.
+- ✅ **Merged everything into the live (deployable) app.** New 5-tab nav: **Today · Schedule · Quests · Journal · Stats**. Stats hosts Overview / Radar / Skills / Pillars / Insights as sub-views. Deep Focus raid wired (launch from Today). Handlers re-added (`handleSaveJournal`, `handleTogglePin`, `handlePlanTomorrow`, `handleFocusComplete`, `handleReset`, journal streak).
+- ✅ **Restored** Boss Fights (section + editor toggle + `.boss-live` pulse + badge) and participation Bounties to `QuestsAchievements`; re-added `BOUNTY_TIERS`/`nextBounty`/`earnedBounties` to `data.ts`.
+- ✅ **Verified:** all 5 tabs render with ZERO console errors; Radar/Skills/Focus open; Boss + Bounties render (progress "12/25 → Devoted"); **`npm run build` passes** (deploy-ready, 225 kB gzip).
+- ⚠️ **Prevent recurrence:** do not run a second AI agent against this repo simultaneously — concurrent `App.tsx` rewrites cause exactly this fork.
+
+### Phase: Bug reporting (beta feedback)
+- ✅ **`BugReport.tsx`** — "Report a bug" launcher (fixed bottom-left) + modal: category (broke/confusing/idea/other) + message; auto-captures screen, app version, user-agent, viewport, user id/email
+- ✅ **Supabase `bug_reports` table** (schema.sql) — RLS lets anyone (incl. offline/anon testers) INSERT; no SELECT policy → **owner reads them in the Supabase dashboard** (Table editor → bug_reports). ⚠️ Run the updated `supabase/schema.sql` to create the table.
+- ✅ **Resilient** — `submitBugReport` returns "sent" or "queued"; failed/offline submits go to a localStorage queue and `flushBugReports()` retries on app/modal open (verified: with table absent it queued the full payload, nothing lost)
+- ✅ `APP_VERSION` constant (`data.ts`) stamps each report to a build
+- ✅ Typecheck clean; verified live (modal, categories, auto-context, submit → thank-you, queue fallback)
+- ⚠️ **NOTE — codebase fork:** the live `App.tsx` (sidebar/hooks refactor: Command/Schedule/Pillar Labs/Bounties/Insights) does NOT import the Today/Journal/Radar/SkillTree/FocusRaid/BossFight work — those components exist but are unwired. Needs reconciliation.
+
 ### Phase: Deep Focus raid (Kintsugi-styled focus timer)
 - ✅ **Decision:** kept the Kintsugi brand (rejected the Solo Leveling cyan reskin — spec was never applied; fonts unchanged: Outfit / Space Grotesk / JetBrains Mono). Ported only the worthwhile *mechanic* in purple/gold
 - ✅ **`FocusRaid.tsx`** — full-screen immersive overlay: setup (objective + 25/50/90m) → active (draining ring, big tabular timer, Retreat) → cleared (gold ring + KintsugiBrain). Launches from a Deep Focus card on Today

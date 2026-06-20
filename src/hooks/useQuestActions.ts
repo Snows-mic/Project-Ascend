@@ -81,6 +81,19 @@ export function useQuestActions({
     nextProfile.xp = Math.max(0, nextProfile.xp + overallXpDelta);
     nextProfile.level = Math.floor(nextProfile.xp / 100) + 1;
 
+    // ── XP burst feedback on completion ──
+    if (isMarkedDone && typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("ascend:xp-burst", {
+          detail: {
+            amount: targetQuest.xpReward,
+            pillar: pillarKey,
+            isBoss: !!targetQuest.isBoss,
+          },
+        }),
+      );
+    }
+
     // ── Kintsugi streak engine (gamemode-aware) ──
     if (isMarkedDone) {
       const gameMode: GameMode =
@@ -196,6 +209,14 @@ export function useQuestActions({
       const updated = [...quests, newQuest];
       setQuests(updated);
       localStorage.setItem("projectff_quests", JSON.stringify(updated));
+      // System voice: confirm directive registration
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("ascend:quest-registered", {
+            detail: { title: newQuest.title, xpReward: newQuest.xpReward, pillar: pid },
+          }),
+        );
+      }
     },
     [profile, quests, setQuests],
   );
