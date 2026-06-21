@@ -27,16 +27,13 @@ export default function AuthScreen({
     setLoading(true);
     setError(null);
     try {
-      const user = await loginWithGoogle();
-      if (user) {
-        onLogin(user);
-      }
+      await loginWithGoogle();
+      // signInWithOAuth redirects to Google; user is set via onAuthStateChange
     } catch (err: any) {
       console.error(err);
       setError(
         "Connection failed. Please check your config or use offline mode.",
       );
-    } finally {
       setLoading(false);
     }
   };
