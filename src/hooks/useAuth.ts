@@ -93,7 +93,7 @@ export function useAuth({
     }
   };
 
-  // ── Auth state listener ──
+  // ── Auth state listener (single source of truth) ──
   useEffect(() => {
     const {
       data: { subscription },
@@ -102,23 +102,12 @@ export function useAuth({
         setCurrentUser(session.user);
         setOfflineMode(false);
         localStorage.setItem("projectff_offline", "false");
-        setAuthLoading(false);
       } else {
         setCurrentUser(null);
         const offlineFlag =
           localStorage.getItem("projectff_offline") === "true";
         setOfflineMode(offlineFlag);
         if (offlineFlag) loadOfflineData();
-        setAuthLoading(false);
-      }
-    });
-
-    // Initial session (handles page reload with existing session)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setCurrentUser(session.user);
-        setOfflineMode(false);
-        localStorage.setItem("projectff_offline", "false");
       }
       setAuthLoading(false);
     });

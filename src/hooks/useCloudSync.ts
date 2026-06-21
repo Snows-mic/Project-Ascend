@@ -43,103 +43,113 @@ export function useCloudSync({
   useEffect(() => {
     if (!currentUser || offlineMode) return;
     const uid = currentUser.id;
+    let cleanupFns: (() => void)[] = [];
+    let cancelled = false;
 
     const ensureDocsExist = async () => {
-      try {
-        const cloudProfile = await fetchProfile(uid);
-        const cloudLog = await fetchDailyLog(uid, todayString);
+      const timeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+        Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 
-        const storedProfileStr = localStorage.getItem("projectff_profile");
-        const storedLogStr = localStorage.getItem(
-          `projectff_log_${todayString}`,
-        );
+      const [cloudProfile, cloudLog] = await Promise.all([
+        timeout(fetchProfile(uid), 8000),
+        timeout(fetchDailyLog(uid, todayString), 8000),
+      ]);
 
-        let profileToSave: UserProfile;
-        if (!cloudProfile) {
-          if (storedProfileStr) {
-            const parsed = JSON.parse(storedProfileStr);
-            parsed.uid = uid;
-            parsed.email = currentUser.email || "";
-            parsed.displayName =
-              currentUser.user_metadata?.full_name || "User";
-            profileToSave = parsed;
-          } else {
-            profileToSave = createDefaultProfile(
-              uid,
-              currentUser.email || "",
-              currentUser.user_metadata?.full_name || "User",
-            );
-          }
-          await upsertProfile(profileToSave);
+      const storedProfileStr = localStorage.getItem("projectff_profile");
+      const storedLogStr = localStorage.getItem(
+        `projectff_log_${todayString}`,
+      );
+
+      let profileToSave: UserProfile;
+      let profileNeedsUpsert = false;
+      if (!cloudProfile) {
+        if (storedProfileStr) {
+          const parsed = JSON.parse(storedProfileStr);
+          parsed.uid = uid;
+          parsed.email = currentUser.email || "";
+          parsed.displayName =
+            currentUser.user_metadata?.full_name || "User";
+          profileToSave = parsed;
         } else {
-          if (storedProfileStr) {
-            const parsedLocal = JSON.parse(storedProfileStr);
-            if ((parsedLocal.xp || 0) > (cloudProfile.xp || 0)) {
-              parsedLocal.uid = uid;
-              parsedLocal.email = currentUser.email || "";
-              parsedLocal.displayName =
-                currentUser.user_metadata?.full_name || "User";
-              profileToSave = parsedLocal;
-              await upsertProfile(profileToSave);
-            } else {
-              profileToSave = cloudProfile;
-            }
+          profileToSave = createDefaultProfile(
+            uid,
+            currentUser.email || "",
+            currentUser.user_metadata?.full_name || "User",
+          );
+        }
+        profileNeedsUpsert = true;
+      } else {
+        if (storedProfileStr) {
+          const parsedLocal = JSON.parse(storedProfileStr);
+          if ((parsedLocal.xp || 0) > (cloudProfile.xp || 0)) {
+            parsedLocal.uid = uid;
+            parsedLocal.email = currentUser.email || "";
+            parsedLocal.displayName =
+              currentUser.user_metadata?.full_name || "User";
+            profileToSave = parsedLocal;
+            profileNeedsUpsert = true;
           } else {
             profileToSave = cloudProfile;
           }
-        }
-
-        let logToSave: DailyLog;
-        if (!cloudLog) {
-          if (storedLogStr) {
-            logToSave = JSON.parse(storedLogStr);
-            logToSave.userId = uid;
-            await upsertDailyLog(logToSave);
-          } else {
-            logToSave = createEmptyDailyLog(uid, todayString);
-            await upsertDailyLog(logToSave);
-          }
         } else {
-          if (storedLogStr) {
-            const parsedLocalLog = JSON.parse(storedLogStr);
-            const mergedTasks = {
-              ...cloudLog.completedTasks,
-              ...parsedLocalLog.completedTasks,
-            };
-            logToSave = {
-              ...cloudLog,
-              ...parsedLocalLog,
-              completedTasks: mergedTasks,
-              userId: uid,
-            };
-            await upsertDailyLog(logToSave);
-          } else {
-            logToSave = cloudLog;
-          }
+          profileToSave = cloudProfile;
         }
-
-        localStorage.setItem(
-          "projectff_profile",
-          JSON.stringify(profileToSave),
-        );
-        localStorage.setItem(
-          `projectff_log_${todayString}`,
-          JSON.stringify(logToSave),
-        );
-      } catch (error) {
-        console.error("Supabase sync error:", error);
       }
+
+      let logToSave: DailyLog;
+      let logNeedsUpsert = false;
+      if (!cloudLog) {
+        if (storedLogStr) {
+          logToSave = JSON.parse(storedLogStr);
+          logToSave.userId = uid;
+        } else {
+          logToSave = createEmptyDailyLog(uid, todayString);
+        }
+        logNeedsUpsert = true;
+      } else {
+        if (storedLogStr) {
+          const parsedLocalLog = JSON.parse(storedLogStr);
+          const mergedTasks = {
+            ...cloudLog.completedTasks,
+            ...parsedLocalLog.completedTasks,
+          };
+          logToSave = {
+            ...cloudLog,
+            ...parsedLocalLog,
+            completedTasks: mergedTasks,
+            userId: uid,
+          };
+          logNeedsUpsert = true;
+        } else {
+          logToSave = cloudLog;
+        }
+      }
+
+      setProfile(profileToSave);
+      setTodayLog(logToSave);
+      localStorage.setItem(
+        "projectff_profile",
+        JSON.stringify(profileToSave),
+      );
+      localStorage.setItem(
+        `projectff_log_${todayString}`,
+        JSON.stringify(logToSave),
+      );
+
+      const writes: Promise<void>[] = [];
+      if (profileNeedsUpsert) writes.push(upsertProfile(profileToSave));
+      if (logNeedsUpsert) writes.push(upsertDailyLog(logToSave));
+      if (writes.length) await Promise.all(writes);
     };
 
     ensureDocsExist()
       .then(() => {
+        if (cancelled) return;
+
         const unsubProfile = subscribeToProfile(uid, (cloudData) => {
           if (cloudData) {
             setProfile(cloudData);
-            localStorage.setItem(
-              "projectff_profile",
-              JSON.stringify(cloudData),
-            );
+            localStorage.setItem("projectff_profile", JSON.stringify(cloudData));
           }
         });
 
@@ -159,12 +169,27 @@ export function useCloudSync({
           }
         });
 
-        return () => {
-          unsubProfile();
-          unsubLog();
-        };
+        cleanupFns.push(unsubProfile, unsubLog);
       })
-      .catch((err) => console.error("Initialization failed:", err));
+      .catch((err) => {
+        console.error("Supabase sync error:", err);
+        if (cancelled) return;
+        const fallbackProfile = createDefaultProfile(
+          uid,
+          currentUser.email || "",
+          currentUser.user_metadata?.full_name || "User",
+        );
+        const fallbackLog = createEmptyDailyLog(uid, todayString);
+        setProfile(fallbackProfile);
+        setTodayLog(fallbackLog);
+        localStorage.setItem("projectff_profile", JSON.stringify(fallbackProfile));
+        localStorage.setItem(`projectff_log_${todayString}`, JSON.stringify(fallbackLog));
+      });
+
+    return () => {
+      cancelled = true;
+      cleanupFns.forEach((fn) => fn());
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, offlineMode]);
 
@@ -183,8 +208,10 @@ export function useCloudSync({
 
     if (!offlineMode && currentUser) {
       try {
-        await upsertProfile(updatedProfile);
-        await upsertDailyLog(updatedLog);
+        await Promise.all([
+          upsertProfile(updatedProfile),
+          upsertDailyLog(updatedLog),
+        ]);
       } catch (err) {
         console.error("Supabase sync failed:", err);
       }
